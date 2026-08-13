@@ -81,7 +81,7 @@ int main()
         options.maximum_triangles_per_leaf = 32;
         const nexsdf::Asset asset = nexsdf::build(cube, options);
         check(asset.info().node_count > 1,
-            "migrated PyCoCo cube builds an exact influence octree");
+            "catalogued PyCoCo cube builds an exact influence octree");
     }
     catch (const std::exception& error)
     {
@@ -93,6 +93,6 @@ int main()
         std::cerr << failures << " model checks failed\n";
         return 1;
     }
-    std::cout << "all migrated model checks passed\n";
+    std::cout << "all catalogued model checks passed\n";
     return 0;
 }

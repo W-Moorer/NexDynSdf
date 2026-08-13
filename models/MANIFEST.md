@@ -1,7 +1,13 @@
-# Migrated test model manifest
+# Model catalog and provenance
 
-All model files are unchanged copies from the local reference repositories.
-Each source is MIT licensed; copied license texts are in `licenses/`.
+All six validated models are collected in this directory so examples, tests,
+benchmarks, and visualization scripts share one canonical path.
+
+- `pycoco/` and `nagata/` contain prior work authored by the NexDynSdf
+  repository owner and migrated unchanged from the owner's earlier projects.
+  They are first-party assets and require no separate third-party license file.
+- `sdflib/Gear.obj` is copied from SdfLib and remains subject to the SdfLib MIT
+  license in `licenses/SdfLib-LICENSE.txt`.
 
 | File | Source revision and path | SHA-256 | Regression role |
 |---|---|---|---|
@@ -12,8 +18,6 @@ Each source is MIT licensed; copied license texts are in `licenses/`.
 | `nagata/sphere.nsm` | enhanced-nagata-sdf `3443478b1a65885866081a7d2f259aee72a09290`, `models/sphere.nsm` | `f416634147c44113c6215b0daf96a43b3b25c6488bed9cc8f8b4815a8dce82a4` | smooth per-corner normals |
 | `nagata/cone.nsm` | enhanced-nagata-sdf `3443478b1a65885866081a7d2f259aee72a09290`, `models/cone.nsm` | `6dd4471f130b1cc3ae56fd9e02782026b7d0c0e47706d80180bbf45a7f217549` | cone/edge corner normals |
 
-License file hashes:
+Third-party license hash:
 
-- `licenses/PyCoCoFastSDF-LICENSE.txt`: `8f8b56556e93697e5c876df85e3e85c278a86c35125a6c14fb0c2082c54257ef`
 - `licenses/SdfLib-LICENSE.txt`: `1a7dfa83f0119f95b40fa235e4bd48773962ffb72c15efe9e5cf3c17080b6183`
-- `licenses/enhanced-nagata-sdf-LICENSE.txt`: `48297492a87e892910d0d8f5ceae57297a4f759e86178d19e83b80de5770e546`

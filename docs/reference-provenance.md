@@ -6,11 +6,11 @@ The implementation was developed by adapting documented algorithms and data
 contracts from the following local reference repositories. Their complete
 trees are not vendored.
 
-| Reference | Reviewed revision | Reused concept | License |
+| Reference | Reviewed revision | Reused concept | Rights status in this repository |
 |---|---|---|---|
-| `E:/workspace/PyCoCoFastSDF` | `74155fa32704` | cell-centred first-order Taylor query, sparse block terminology, OBJ regression models | MIT, Wang Lijing |
-| `E:/workspace/SdfLib` | `8db373e` | exact triangle-influence octree, adaptive polynomial octree, trilinear and tricubic Hermite data layout, Gear model | MIT, Eduard Pujol |
-| `E:/workspace/enhanced-nagata-sdf` | `3443478` plus inspected local NSM data | NSM v1 binary layout and per-corner-normal regression models | MIT, Enhanced Nagata SDF Project Authors |
+| `E:/workspace/PyCoCoFastSDF` | `74155fa32704` | cell-centred first-order Taylor query, sparse block terminology, OBJ regression models | repository owner's prior first-party work; no separate third-party license |
+| `E:/workspace/SdfLib` | `8db373e` | exact triangle-influence octree, adaptive polynomial octree, trilinear and tricubic Hermite data layout, Gear model | third-party MIT, Eduard Pujol |
+| `E:/workspace/enhanced-nagata-sdf` | `3443478` plus inspected local NSM data | NSM v1 binary layout and per-corner-normal regression models | repository owner's prior first-party work; no separate third-party license |
 
 The visualization review additionally covered SdfLib's tracked OpenGL viewers,
 plane shaders, and compute-shader ray marcher at `8db373ef71d6`, plus the local
@@ -22,9 +22,12 @@ implementation that uses the public query API; no OpenGL/VTK/PyVista code is
 vendored or linked. Detailed findings and exact reviewed files are in
 `docs/visualization.md`.
 
-Copied test assets retain their original names, are kept under
-`tests/models/<source>/`, and are recorded in `tests/models/MANIFEST.md` with
-source paths and SHA-256 hashes.
+Model assets retain their original names, are collected under
+`models/<source>/`, and are recorded in `models/MANIFEST.md` with source paths
+and SHA-256 hashes. PyCoCoFastSDF and enhanced-nagata-sdf are prior work of the
+NexDynSdf repository owner and are treated as first-party sources. Only the
+copied SdfLib Gear model requires a separate third-party license notice, kept
+at `models/licenses/SdfLib-LICENSE.txt`.
 
 ## Papers
 

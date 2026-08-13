@@ -147,7 +147,7 @@ scripts/generate_readme_images.ps1 -Configuration Release -ImageResolution 512
 ```
 
 The models, source revisions, original paths, licenses, and file hashes are
-recorded in `tests/models/MANIFEST.md` and `docs/reference-provenance.md`.
+recorded in `models/MANIFEST.md` and `docs/reference-provenance.md`.
 
 ## Last verified against
 

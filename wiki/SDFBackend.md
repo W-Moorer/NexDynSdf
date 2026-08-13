@@ -36,13 +36,15 @@ OBJ / NSM v1
 - `src/c_api.cpp`: C ABI and exception/status translation.
 - `tools/nexsdfviz.cpp`: deterministic distance/normal/depth/error slices.
 - `scripts/generate_readme_images.ps1`: reproducible reference-fixture images.
+- `models/`: canonical first-party and SdfLib model collection used by tests,
+  benchmarks, examples, and visualization generation.
 
 ## Tests and validation
 
 `tests/unit_tests.cpp` checks exact distance, BVH against exhaustive triangle
 scan, exact-octree conservation, reconstruction derivatives, adaptive
 coarse/fine continuity, serialization, corruption rejection, and C ABI status.
-`tests/model_tests.cpp` checks migrated PyCoCo, SdfLib, and enhanced Nagata
+`tests/model_tests.cpp` checks catalogued PyCoCo, SdfLib, and Nagata
 models. `tests/visualization_smoke.cmake` exercises all five visualization
 modes against a generated asset.
 
@@ -65,7 +67,7 @@ Date: 2026-08-13.
 
 Sources: `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
 `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
-`scripts/generate_readme_images.ps1`.
+`scripts/generate_readme_images.ps1`, `models/MANIFEST.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
 `tests/model_tests.cpp`, `tests/visualization_smoke.cmake`,

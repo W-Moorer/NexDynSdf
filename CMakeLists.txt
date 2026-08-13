@@ -76,7 +76,7 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
     add_executable(nexsdf_model_tests tests/model_tests.cpp)
     target_link_libraries(nexsdf_model_tests PRIVATE NexSdf::Query)
     target_compile_definitions(nexsdf_model_tests PRIVATE
-        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/models")
+        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
     add_test(NAME nexsdf.models COMMAND nexsdf_model_tests)
     set_tests_properties(nexsdf.models PROPERTIES LABELS regression)
 
@@ -85,7 +85,7 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
             COMMAND ${CMAKE_COMMAND}
                 -DGENERATOR=$<TARGET_FILE:nexsdfgen>
                 -DVISUALIZER=$<TARGET_FILE:nexsdfviz>
-                -DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/tests/models/pycoco/cube.obj
+                -DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/models/pycoco/cube.obj
                 -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/visualization-smoke
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/visualization_smoke.cmake)
         set_tests_properties(nexsdf.visualization PROPERTIES LABELS integration)
@@ -94,7 +94,7 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
     add_executable(nexsdf_exact_benchmark tests/benchmark_exact.cpp)
     target_link_libraries(nexsdf_exact_benchmark PRIVATE NexSdf::Query)
     target_compile_definitions(nexsdf_exact_benchmark PRIVATE
-        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/models")
+        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
     add_test(NAME nexsdf.benchmark.exact COMMAND nexsdf_exact_benchmark)
     set_tests_properties(nexsdf.benchmark.exact PROPERTIES LABELS benchmark)
 endif()
@@ -109,6 +109,8 @@ install(FILES LICENSE README.md THIRD_PARTY_NOTICES.md
     DESTINATION ${CMAKE_INSTALL_DATADIR}/NexDynSdf)
 install(DIRECTORY docs/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/NexDynSdf/docs)
+install(DIRECTORY models/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/NexDynSdf/models)
 install(EXPORT NexSdfQueryTargets
     FILE NexSdfQueryTargets.cmake
     NAMESPACE NexSdf::

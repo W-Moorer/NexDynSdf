@@ -8,7 +8,7 @@ long-lived runtime compatibility.
 
 ## Reproducible results
 
-The images below are generated from the migrated reference fixtures by
+The images below are generated from the canonical model catalog by
 `scripts/generate_readme_images.ps1`. They are sampled through the same
 `Asset::query_batch` path used by consumers; no private file-layout reader or
 GPU shader reimplements the SDF query.
@@ -50,6 +50,20 @@ Implemented representations and reconstructions:
 The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
 files containing per-triangle face identifiers and per-corner normals.
 
+## Models
+
+All example and validation models are consolidated under [`models/`](models/):
+
+| Directory | Contents | Ownership |
+|---|---|---|
+| `models/pycoco/` | cube and sphere OBJ | repository owner's prior first-party work; no separate license file |
+| `models/nagata/` | box, sphere, and cone NSM with per-corner normals | repository owner's prior first-party work; no separate license file |
+| `models/sdflib/` | Gear OBJ | third-party SdfLib model; MIT license retained |
+
+The exact revisions, original paths, hashes, and regression roles are recorded
+in [`models/MANIFEST.md`](models/MANIFEST.md). The only model-specific
+third-party license is [`models/licenses/SdfLib-LICENSE.txt`](models/licenses/SdfLib-LICENSE.txt).
+
 ## Build
 
 ```powershell
@@ -70,7 +84,7 @@ scripts/verify_install.ps1 -Configuration Release
 ## Generate and inspect
 
 ```powershell
-build/Release/nexsdfgen.exe tests/models/pycoco/cube.obj out/cube.nsdf `
+build/Release/nexsdfgen.exe models/pycoco/cube.obj out/cube.nsdf `
   --representation grid --reconstruction trilinear --resolution 48
 build/Release/nexsdfinspect.exe out/cube.nsdf 2 0 0
 ```
@@ -83,7 +97,7 @@ build/Release/nexsdfviz.exe out/cube.nsdf out/cube.ppm `
   --axis z --mode distance --resolution 512
 python scripts/ppm_to_png.py out/cube.ppm out/cube.png
 
-# Rebuild every committed README image from migrated fixtures.
+# Rebuild every committed README image from the model catalog.
 scripts/generate_readme_images.ps1 -Configuration Release
 ```
 

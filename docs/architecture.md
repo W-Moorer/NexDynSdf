@@ -84,8 +84,8 @@ Commands run in this session:
 - shared integration suite in `build-test-shared-final` — passed.
 - `scripts/verify_install.ps1 -Configuration Release` — passed.
 - `ctest --test-dir build-test-static-final -C Release -L benchmark
-  --output-on-failure -V` — passed; zero numerical difference and 48.4583x
-  observed BVH speedup on the migrated Gear fixture.
+  --output-on-failure -V` — passed; zero numerical difference and 38.8165x
+  observed BVH speedup on the catalogued Gear model.
 - `scripts/generate_readme_images.ps1 -Configuration Release
   -ImageResolution 512` — passed.
 
