@@ -56,7 +56,12 @@ if(NEXSDF_BUILD_TOOLS)
     target_link_libraries(nexsdfviz PRIVATE NexSdf::Query)
     add_executable(nexsdfmodelaudit tools/nexsdfmodelaudit.cpp)
     target_link_libraries(nexsdfmodelaudit PRIVATE NexSdf::Query)
-    install(TARGETS nexsdfgen nexsdfinspect nexsdfviz nexsdfmodelaudit
+    add_executable(nexsdfvalidate tools/nexsdfvalidate.cpp)
+    target_link_libraries(nexsdfvalidate PRIVATE NexSdf::Query)
+    if(WIN32)
+        target_link_libraries(nexsdfvalidate PRIVATE Psapi)
+    endif()
+    install(TARGETS nexsdfgen nexsdfinspect nexsdfviz nexsdfmodelaudit nexsdfvalidate
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
@@ -89,6 +94,14 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
                 -DMODEL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/models
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/model_catalog_smoke.cmake)
         set_tests_properties(nexsdf.model_catalog PROPERTIES LABELS regression)
+
+        add_test(NAME nexsdf.validation
+            COMMAND ${CMAKE_COMMAND}
+                -DVALIDATOR=$<TARGET_FILE:nexsdfvalidate>
+                -DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/models/pycoco/obj_library/cube.obj
+                -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/validation-smoke
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/validation_smoke.cmake)
+        set_tests_properties(nexsdf.validation PROPERTIES LABELS regression)
     endif()
 
     if(NEXSDF_BUILD_TOOLS)

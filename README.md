@@ -53,6 +53,13 @@ Implemented representations and reconstructions:
 - tricubic Hermite scalar reconstruction;
 - PyCoCo-compatible cell-centred gradient Taylor reconstruction.
 
+Quantitative comparison is provided by `nexsdfvalidate`. Its versioned TSV
+schema includes distance, gradient, normal, Eikonal, bidirectional sampled
+surface error, serialized size, peak process memory, and warmed build/query
+measurements with reproducibility metadata. See
+[`docs/validation.md`](docs/validation.md) for the exact sampling policy and
+the 32/64/128/256 matrix command.
+
 The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
 files containing per-triangle face identifiers and per-corner normals.
 
@@ -138,6 +145,7 @@ The canonical PowerShell entry point builds and runs the labeled suites:
 scripts/run_tests.ps1 -Configuration Release
 scripts/run_tests.ps1 -Configuration Release -Shared
 scripts/verify_install.ps1 -Configuration Release
+scripts/run_validation_matrix.ps1 -Profile Smoke -Configuration Release
 ```
 
 ## Generate and inspect

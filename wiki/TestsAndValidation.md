@@ -5,7 +5,8 @@
 - `unit`: exact geometry, all reconstructions, both octrees, coarse/fine
   continuity, `.nsdf` round trips/corruption, and pure C ABI.
 - `regression`: core SDF generation fixtures plus a complete 34-asset catalog
-  integrity audit (32 OBJ/NSM parser inputs, 29 runtime-ready assets).
+  integrity audit (32 OBJ/NSM parser inputs, 29 runtime-ready assets), and the
+  deterministic quantitative-validation schema smoke test.
 - `integration`: generates a real `.nsdf` and validates all five headless
   visualization output modes.
 - `benchmark`: Gear exact-surface BVH against exhaustive triangle queries;
@@ -20,7 +21,22 @@ scripts/run_tests.ps1 -Configuration Release -Shared
 scripts/verify_install.ps1 -Configuration Release
 ctest --test-dir build-test-static-final -C Release -L integration --output-on-failure
 ctest --test-dir build -C Release -L benchmark --output-on-failure -V
+scripts/run_validation_matrix.ps1 -Profile Smoke -Configuration Release
 ```
+
+## Quantitative field and surface protocol
+
+`nexsdfvalidate` freezes the M0 measurement protocol before influence,
+composition, or backend changes. It compares public asset queries with the
+exact triangle surface at deterministic Halton domain samples and area-weighted
+triangle-interior samples. Both mesh-to-field and Newton-projected
+field-to-mesh directions are retained; their maximum is explicitly a sampled
+symmetric estimate rather than a certified continuous Hausdorff distance.
+
+The versioned TSV also records raw-gradient and normal error, Eikonal residual,
+asset bytes, process peak working set, build/query timing, compiler,
+configuration, backend, worker count, model hash, seed, warm-up, and sample
+counts. See `docs/validation.md` for definitions and resource caveats.
 
 ## Model collection
 
@@ -56,11 +72,13 @@ output of each supported mode by repeating generation and comparing SHA-256.
 Date: 2026-08-13.
 
 Sources: `CMakeLists.txt`, `scripts/run_tests.ps1`,
-`scripts/verify_install.ps1`, `models/MANIFEST.md`.
+`scripts/verify_install.ps1`, `scripts/run_validation_matrix.ps1`,
+`tools/nexsdfvalidate.cpp`, `models/MANIFEST.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
 `tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
 `tests/visualization_smoke.cmake`,
+`tests/validation_smoke.cmake`,
 `tests/benchmark_exact.cpp`.
 
 Results recorded before documentation finalization:

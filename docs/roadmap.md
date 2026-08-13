@@ -12,7 +12,7 @@ performance optimization. A milestone is complete only when its stated tests
 and documentation are committed; benchmark improvement alone is not an
 acceptance criterion.
 
-## M0: frozen comparison and validation harness
+## M0: frozen comparison and validation harness (implemented)
 
 Build the quantitative harness before changing algorithms so later results can
 be compared against the current implementation.
@@ -35,6 +35,11 @@ be compared against the current implementation.
 Acceptance requires analytic sign/gradient tests, reproducible output schemas,
 and a regression that rejects missing directions, missing reference samples, or
 non-finite metrics.
+
+Implementation: `tools/nexsdfvalidate.cpp`,
+`scripts/run_validation_matrix.ps1`, `tests/validation_smoke.cmake`, and
+`docs/validation.md`. The full matrix remains an explicit, machine-dependent
+benchmark run rather than a normal regression test.
 
 ## M1: paper-faithful exact influence filtering
 
