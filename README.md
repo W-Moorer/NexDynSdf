@@ -56,6 +56,27 @@ Implemented representations and reconstructions:
 The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
 files containing per-triangle face identifiers and per-corner normals.
 
+## SdfLib algorithm references
+
+The exact and adaptive SdfLib-derived architecture is informed by these two
+papers. Please cite the relevant paper when the corresponding algorithm is
+used in research results:
+
+1. E. Pujol and A. Chica, “Triangle Influence Supersets for Fast Distance
+   Computation,” *Computer Graphics Forum*, vol. 42, no. 6, article e14861,
+   2023. [doi:10.1111/cgf.14861](https://doi.org/10.1111/cgf.14861).
+2. E. Pujol and A. Chica, “Adaptive approximation of signed distance fields
+   through piecewise continuous interpolation,” *Computers & Graphics*,
+   vol. 114, pp. 337–346, 2023.
+   [doi:10.1016/j.cag.2023.06.020](https://doi.org/10.1016/j.cag.2023.06.020).
+
+The first paper motivates the exact triangle-influence representation. The
+current implementation uses a conservative AABB/Lipschitz influence filter,
+not the paper's tighter convex-hull/GJK filter. The second paper motivates the
+adaptive trilinear/tricubic representation and its probe-driven subdivision.
+See [`docs/reference-provenance.md`](docs/reference-provenance.md) for the
+paper-to-code boundary and implementation differences.
+
 ## Models
 
 All example and validation models are consolidated under [`models/`](models/):

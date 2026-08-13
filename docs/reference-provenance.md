@@ -35,11 +35,12 @@ at `models/licenses/SdfLib-LICENSE.txt`.
 ## Papers
 
 - Eduard Pujol and Antonio Chica, *Triangle Influence Supersets for Fast
-  Distance Computation*, Computer Graphics Forum 42(6), 2023,
-  DOI `10.1111/cgf.14861`.
+  Distance Computation*, Computer Graphics Forum 42(6), article e14861, 2023,
+  [doi:10.1111/cgf.14861](https://doi.org/10.1111/cgf.14861).
 - Eduard Pujol and Antonio Chica, *Adaptive approximation of signed distance
   fields through piecewise continuous interpolation*, Computers & Graphics
-  114, 2023, DOI `10.1016/j.cag.2023.06.020`.
+  114, 337–346, 2023,
+  [doi:10.1016/j.cag.2023.06.020](https://doi.org/10.1016/j.cag.2023.06.020).
 
 The exact octree uses a conservative AABB/Lipschitz triangle-influence
 superset. It is a deliberately weaker but still exact conservative filter than
