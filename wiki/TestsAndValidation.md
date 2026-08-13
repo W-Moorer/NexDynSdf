@@ -4,7 +4,8 @@
 
 - `unit`: exact geometry, all reconstructions, both octrees, coarse/fine
   continuity, `.nsdf` round trips/corruption, and pure C ABI.
-- `regression`: all six catalogued models from PyCoCo, SdfLib, and Nagata.
+- `regression`: core SDF generation fixtures plus a complete 34-asset catalog
+  integrity audit (32 OBJ/NSM parser inputs, 29 runtime-ready assets).
 - `integration`: generates a real `.nsdf` and validates all five headless
   visualization output modes.
 - `benchmark`: Gear exact-surface BVH against exhaustive triangle queries;
@@ -23,12 +24,22 @@ ctest --test-dir build -C Release -L benchmark --output-on-failure -V
 
 ## Model collection
 
-All six models are stored under the root `models/` directory. Source revisions,
-ownership status, the SdfLib license, and hashes are recorded in
-`models/MANIFEST.md`. PyCoCo and Nagata models are the repository owner's prior
-first-party work and carry no separate third-party license; only the SdfLib
+All 34 persisted assets found in the reviewed PyCoCoFastSDF,
+enhanced-nagata-sdf, SDFmodel, and SdfLib source locations are stored under the
+root `models/` directory. This includes all 24 PyCoCo OBJ files and the
+runtime-ready `PressureLubricatedCam.obj`, rather than only the original six
+regression fixtures. Source revisions, tracked/generated state, ownership,
+hashes, and sizes are recorded in `models/CATALOG.tsv`; current import and
+topology results are in `models/AUDIT.tsv`.
+
+PyCoCo, Nagata, and SDFmodel models are the repository owner's prior
+first-party work and carry no separate third-party license. Only the SdfLib
 Gear model retains a model-specific MIT license. Tests do not download mutable
-external assets.
+external assets. `scripts/update_model_catalog.ps1` fails if any copied asset
+differs from its local source, while the catalog regression fails if an asset,
+size, hash, parse count, runtime-ready count, or committed audit row drifts.
+`scripts/update_model_audit.ps1` deliberately uses the production loaders to
+regenerate the canonical UTF-8/LF audit report.
 README images are regenerated from those fixtures with
 `scripts/generate_readme_images.ps1`; the visualizer integration test does not
 compare screenshots by appearance and instead verifies successful deterministic
@@ -48,16 +59,19 @@ Sources: `CMakeLists.txt`, `scripts/run_tests.ps1`,
 `scripts/verify_install.ps1`, `models/MANIFEST.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
-`tests/model_tests.cpp`, `tests/visualization_smoke.cmake`,
+`tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
+`tests/visualization_smoke.cmake`,
 `tests/benchmark_exact.cpp`.
 
 Results recorded before documentation finalization:
 
 - Release static `unit`: passed (2 tests).
-- Release static `regression`: passed (1 test).
+- Release static `regression`: passed (2 tests, including the complete model
+  catalog audit).
 - Release static `integration`: passed (1 test).
 - Release shared `unit`: passed (2 tests).
-- Release shared `regression`: passed (1 test).
+- Release shared `regression`: passed (2 tests, including the complete model
+  catalog audit).
 - Release shared `integration`: passed (1 test).
 - Installed-package consumer: passed.
 
@@ -67,11 +81,14 @@ Final benchmark observation on this host:
 
 - SdfLib Gear fixture: 6,882 triangles, 1,024 deterministic query points.
 - BVH versus exhaustive maximum scalar error: `0`.
-- BVH time: `0.0110996 s`; exhaustive time: `0.430848 s`.
-- Observed speedup: `38.8165x`. This is an observation, not a pass threshold or
+- BVH time: `0.0102879 s`; exhaustive time: `0.498422 s`.
+- Observed speedup: `48.4474x`. This is an observation, not a pass threshold or
   a portable performance guarantee.
 
 Final CLI smoke checks generated, loaded, and queried dense trilinear,
 adaptive tricubic NSM, and exact influence octree assets successfully.
 The headless visualizer generated all five diagnostic modes, and the README
-image pipeline completed for the PyCoCo sphere, Nagata cone, and SdfLib Gear.
+image pipeline completed for the PyCoCo sphere and pressure-lubricated cam,
+Nagata cone, and SdfLib Gear.
+The pressure-lubricated cam smoke generated a 1,728-node dense trilinear asset
+from all 7,356 triangles and returned an in-domain signed query successfully.

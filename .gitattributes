@@ -1,0 +1,9 @@
+# Model payload hashes in models/CATALOG.tsv describe the original source
+# bytes. Never let Git's platform line-ending conversion rewrite those bytes.
+models/**/*.obj binary
+models/**/*.nsm binary
+models/**/*.eng binary
+models/**/*.stl binary
+
+# Machine-readable reports are canonical UTF-8 with LF line endings.
+models/*.tsv text eol=lf

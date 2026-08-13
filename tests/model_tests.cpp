@@ -65,14 +65,15 @@ int main()
 {
     try
     {
-        check_obj("pycoco/cube.obj", 684);
-        check_obj("pycoco/sphere.obj", 1520);
+        check_obj("pycoco/obj_library/cube.obj", 684);
+        check_obj("pycoco/obj_library/sphere.obj", 1520);
         check_obj("sdflib/Gear.obj", 6882);
         check_nsm("nagata/box.nsm", 128, false);
         check_nsm("nagata/sphere.nsm", 480, true);
         check_nsm("nagata/cone.nsm", 2432, true);
 
-        const nexsdf::SurfaceMesh cube = nexsdf::load_obj(model("pycoco/cube.obj").string());
+        const nexsdf::SurfaceMesh cube = nexsdf::load_obj(
+            model("pycoco/obj_library/cube.obj").string());
         nexsdf::BuildOptions options;
         options.representation = nexsdf::Representation::ExactInfluenceOctree;
         options.reconstruction = nexsdf::Reconstruction::Exact;

@@ -14,6 +14,7 @@ OBJ / NSM -> SurfaceMesh -> validation -> ExactSurface
   -> grid / exact influence octree / adaptive octree
   -> versioned .nsdf -> C API / C++ wrapper -> NexDyn adapter
                   \-> nexsdfviz -> PPM -> standard-library PNG conversion
+  \-> nexsdfmodelaudit -> catalog-wide parser/topology report
 ```
 
 ## Public boundary
@@ -37,6 +38,9 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
 - Generation/import remain offline operations in the C++ API and CLI.
 - Visualization is a separate tool target. It uses batch public queries and is
   neither installed as nor linked into the runtime library.
+- `nexsdfmodelaudit` applies the production OBJ/NSM loaders, duplicate welding,
+  and topology policy to every catalogued parser input; it does not implement a
+  second permissive test-only loader.
 
 ## Known limitations
 
@@ -62,7 +66,8 @@ Date: 2026-08-13.
 Sources:
 
 - `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-  `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`
+  `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
+  `tools/nexsdfmodelaudit.cpp`
 - `include/nexsdf/nexsdf.hpp`, `include/nexsdf/c_api.h`
 
 Tests:
@@ -70,24 +75,28 @@ Tests:
 - `tests/unit_tests.cpp`
 - `tests/c_api_tests.c`
 - `tests/model_tests.cpp`
+- `tests/model_catalog_smoke.cmake`
 - `tests/visualization_smoke.cmake`
 - `tests/benchmark_exact.cpp`
 - `tests/install_consumer/main.c`
 
 Commands run in this session:
 
-- `scripts/run_tests.ps1 -Configuration Release` — passed static unit and
+- `scripts/run_tests.ps1 -Configuration Release`: passed static unit and
   regression suites.
-- static integration suite in `build-test-static-final` — passed.
-- `scripts/run_tests.ps1 -Configuration Release -Shared` — passed shared unit
+- static integration suite in `build-test-static-final`: passed.
+- `scripts/run_tests.ps1 -Configuration Release -Shared`: passed shared unit
   and regression suites.
-- shared integration suite in `build-test-shared-final` — passed.
-- `scripts/verify_install.ps1 -Configuration Release` — passed.
+- shared integration suite in `build-test-shared-final`: passed.
+- `scripts/verify_install.ps1 -Configuration Release`: passed and verified all
+  34 installed model hashes from a clean prefix.
 - `ctest --test-dir build-test-static-final -C Release -L benchmark
-  --output-on-failure -V` — passed; zero numerical difference and 38.8165x
+  --output-on-failure -V`: passed; zero numerical difference and 48.4474x
   observed BVH speedup on the catalogued Gear model.
 - `scripts/generate_readme_images.ps1 -Configuration Release
-  -ImageResolution 512` — passed.
+  -ImageResolution 512`: passed.
+- Pressure-lubricated cam generation and in-domain query smoke: passed for all
+  7,356 input triangles.
 
 The benchmark command is recorded in `wiki/TestsAndValidation.md` after its
 final run.

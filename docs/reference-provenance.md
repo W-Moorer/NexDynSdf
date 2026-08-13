@@ -11,6 +11,7 @@ trees are not vendored.
 | `E:/workspace/PyCoCoFastSDF` | `74155fa32704` | cell-centred first-order Taylor query, sparse block terminology, OBJ regression models | repository owner's prior first-party work; no separate third-party license |
 | `E:/workspace/SdfLib` | `8db373e` | exact triangle-influence octree, adaptive polynomial octree, trilinear and tricubic Hermite data layout, Gear model | third-party MIT, Eduard Pujol |
 | `E:/workspace/enhanced-nagata-sdf` | `3443478` plus inspected local NSM data | NSM v1 binary layout and per-corner-normal regression models | repository owner's prior first-party work; no separate third-party license |
+| `E:/workspace/SDFmodel` | `e512f4692229` plus inspected generated outputs | scripts that generated the retained cam, gear, validation NSM, and cam STL assets | repository owner's prior first-party work; no separate third-party license |
 
 The visualization review additionally covered SdfLib's tracked OpenGL viewers,
 plane shaders, and compute-shader ray marcher at `8db373ef71d6`, plus the local
@@ -22,9 +23,11 @@ implementation that uses the public query API; no OpenGL/VTK/PyVista code is
 vendored or linked. Detailed findings and exact reviewed files are in
 `docs/visualization.md`.
 
-Model assets retain their original names, are collected under
-`models/<source>/`, and are recorded in `models/MANIFEST.md` with source paths
-and SHA-256 hashes. PyCoCoFastSDF and enhanced-nagata-sdf are prior work of the
+All 34 persisted model assets found in the reviewed source locations are
+collected under `models/<source>/`. `models/CATALOG.tsv` records the full source
+revision, tracked/generated state, original path, byte count, and SHA-256;
+`models/AUDIT.tsv` records the production-loader and topology audit. The
+PyCoCoFastSDF, enhanced-nagata-sdf, and SDFmodel assets are prior work of the
 NexDynSdf repository owner and are treated as first-party sources. Only the
 copied SdfLib Gear model requires a separate third-party license notice, kept
 at `models/licenses/SdfLib-LICENSE.txt`.

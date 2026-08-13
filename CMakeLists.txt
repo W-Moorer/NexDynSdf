@@ -54,7 +54,9 @@ if(NEXSDF_BUILD_TOOLS)
     target_link_libraries(nexsdfinspect PRIVATE NexSdf::Query)
     add_executable(nexsdfviz tools/nexsdfviz.cpp)
     target_link_libraries(nexsdfviz PRIVATE NexSdf::Query)
-    install(TARGETS nexsdfgen nexsdfinspect nexsdfviz
+    add_executable(nexsdfmodelaudit tools/nexsdfmodelaudit.cpp)
+    target_link_libraries(nexsdfmodelaudit PRIVATE NexSdf::Query)
+    install(TARGETS nexsdfgen nexsdfinspect nexsdfviz nexsdfmodelaudit
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
@@ -81,11 +83,20 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
     set_tests_properties(nexsdf.models PROPERTIES LABELS regression)
 
     if(NEXSDF_BUILD_TOOLS)
+        add_test(NAME nexsdf.model_catalog
+            COMMAND ${CMAKE_COMMAND}
+                -DAUDITOR=$<TARGET_FILE:nexsdfmodelaudit>
+                -DMODEL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/models
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/model_catalog_smoke.cmake)
+        set_tests_properties(nexsdf.model_catalog PROPERTIES LABELS regression)
+    endif()
+
+    if(NEXSDF_BUILD_TOOLS)
         add_test(NAME nexsdf.visualization
             COMMAND ${CMAKE_COMMAND}
                 -DGENERATOR=$<TARGET_FILE:nexsdfgen>
                 -DVISUALIZER=$<TARGET_FILE:nexsdfviz>
-                -DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/models/pycoco/cube.obj
+                -DMODEL=${CMAKE_CURRENT_SOURCE_DIR}/models/pycoco/obj_library/cube.obj
                 -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/visualization-smoke
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/visualization_smoke.cmake)
         set_tests_properties(nexsdf.visualization PROPERTIES LABELS integration)

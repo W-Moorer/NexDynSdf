@@ -1,0 +1,33 @@
+path	format	vertices	triangles	corner_normals	raw_ready	runtime_ready	components	boundary_edges	non_manifold_edges	orientation_mismatches	message
+nagata/box.nsm	nsm	110	128	1	0	1	6	80	0	0	valid closed oriented triangle mesh
+nagata/cone.nsm	nsm	1218	2432	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+nagata/sphere.nsm	nsm	242	480	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/RecurdynSlaveGearTri.obj	obj	32663	65322	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/SlaveGearOutFace.obj	obj	5392	10780	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/cube.obj	obj	344	684	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/fixed_body.obj	obj	111	218	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/fixed_body_level1.obj	obj	480	956	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/fixed_body_level2.obj	obj	2817	5630	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/gear.obj	obj	5371	10738	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/rough_body.obj	obj	3694	7384	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_library/sphere.obj	obj	762	1520	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/combinatorial_geometry/CompositeBody1.obj	obj	264	524	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/combinatorial_geometry/CompositeBody2.obj	obj	309	614	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/complex_geometry/Gear.obj	obj	3443	6882	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/complex_geometry/LinkedGear.obj	obj	1657	3314	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/complex_geometry/Nail.obj	obj	3182	6360	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj	obj	3672	7356	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/complex_geometry/SlidewayRotatingModel.obj	obj	15792	31596	1	0	0	2	0	0	0	mesh must contain exactly one connected surface component
+pycoco/obj_model/nonsmooth_geometry/Cone.obj	obj	164	324	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/nonsmooth_geometry/Cube.obj	obj	272	540	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/nonsmooth_geometry/Cylinder.obj	obj	212	420	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/nonsmooth_geometry/Prism.obj	obj	263	522	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/nonsmooth_geometry/TruncatedRing.obj	obj	102	200	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/smooth_geometry/Ellipsoid.obj	obj	336	668	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/smooth_geometry/Ring.obj	obj	158	316	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+pycoco/obj_model/smooth_geometry/Sphere.obj	obj	163	322	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+sdflib/Gear.obj	obj	3443	6882	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+sdfmodel/cam.nsm	nsm	122	240	1	0	0	1	60	60	0	mesh is not a closed two-manifold
+sdfmodel/gear.nsm	nsm	50	96	1	0	0	1	24	24	0	mesh is not a closed two-manifold
+sdfmodel/validation_coarse.nsm	nsm	162	320	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+sdfmodel/validation_fine.nsm	nsm	642	1280	1	1	1	1	0	0	0	valid closed oriented triangle mesh

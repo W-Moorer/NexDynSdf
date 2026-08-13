@@ -22,6 +22,12 @@ the distance view, blue is negative (inside), red is positive (outside), and
 the dark line is the sampled zero crossing. The normal view maps normalized
 `x/y/z` gradient components to RGB.
 
+![PyCoCo pressure-lubricated cam trilinear signed-distance slice](docs/images/pycoco-pressure-lubricated-cam-distance.png)
+
+The migrated pressure-lubricated cam is baked from all `7,356` triangles to a
+`64^3` dense trilinear field. This x-normal slice verifies the closed cam OBJ
+through the same production generation and query path used by consumers.
+
 | Adaptive tricubic leaf depth | Adaptive 19-probe measured error |
 |---|---|
 | ![Nagata cone adaptive-octree depth slice](docs/images/nagata-cone-adaptive-depth.png) | ![Nagata cone adaptive-octree measured-error slice](docs/images/nagata-cone-adaptive-error.png) |
@@ -56,13 +62,27 @@ All example and validation models are consolidated under [`models/`](models/):
 
 | Directory | Contents | Ownership |
 |---|---|---|
-| `models/pycoco/` | cube and sphere OBJ | repository owner's prior first-party work; no separate license file |
-| `models/nagata/` | box, sphere, and cone NSM with per-corner normals | repository owner's prior first-party work; no separate license file |
+| `models/pycoco/` | all 24 OBJ files from `obj_library` and `obj_model`, including the pressure-lubricated cam, gears, slideway, primitives, and compound bodies | repository owner's prior first-party work; no separate license file |
+| `models/nagata/` | box, sphere, cone NSM, plus the cone ENG crease cache | repository owner's prior first-party work; no separate license file |
+| `models/sdfmodel/` | generated cam, gear, coarse/fine validation NSM and cam STL | repository owner's prior first-party work; no separate license file |
 | `models/sdflib/` | Gear OBJ | third-party SdfLib model; MIT license retained |
 
-The exact revisions, original paths, hashes, and regression roles are recorded
-in [`models/MANIFEST.md`](models/MANIFEST.md). The only model-specific
-third-party license is [`models/licenses/SdfLib-LICENSE.txt`](models/licenses/SdfLib-LICENSE.txt).
+The catalog currently contains 34 assets: 32 OBJ/NSM parser inputs and two
+auxiliary source/cache files. All 32 OBJ/NSM files parse successfully; 29 pass
+the current strict single-component signed-distance topology policy. See
+[`models/MANIFEST.md`](models/MANIFEST.md), the machine-readable
+[`models/CATALOG.tsv`](models/CATALOG.tsv), and the current
+[`models/AUDIT.tsv`](models/AUDIT.tsv). The only model-specific third-party
+license is [`models/licenses/SdfLib-LICENSE.txt`](models/licenses/SdfLib-LICENSE.txt).
+
+Cam assets are available directly at:
+
+- `models/pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj`: closed
+  single-component OBJ and ready for SDF generation;
+- `models/sdfmodel/cam.nsm`: retained experimental NSM with known
+  boundary/non-manifold topology;
+- `models/sdfmodel/cam.stl`: retained generated STL source output; STL import
+  is not currently part of NexDynSdf.
 
 ## Build
 
@@ -84,7 +104,7 @@ scripts/verify_install.ps1 -Configuration Release
 ## Generate and inspect
 
 ```powershell
-build/Release/nexsdfgen.exe models/pycoco/cube.obj out/cube.nsdf `
+build/Release/nexsdfgen.exe models/pycoco/obj_library/cube.obj out/cube.nsdf `
   --representation grid --reconstruction trilinear --resolution 48
 build/Release/nexsdfinspect.exe out/cube.nsdf 2 0 0
 ```
@@ -103,6 +123,15 @@ scripts/generate_readme_images.ps1 -Configuration Release
 
 `nexsdfviz` supports `distance`, `normal`, `gradient-error`, `depth`, and
 `error` modes. It is an offline tool and is not part of the runtime ABI.
+
+Audit the complete OBJ/NSM catalog through the production import and topology
+code:
+
+```powershell
+build/Release/nexsdfmodelaudit.exe models --expect-files 32 --expect-ready 29
+scripts/update_model_catalog.ps1  # verifies source hashes and rewrites CATALOG.tsv
+scripts/update_model_audit.ps1    # rewrites AUDIT.tsv through production loaders
+```
 
 Valid representation/reconstruction pairs are:
 

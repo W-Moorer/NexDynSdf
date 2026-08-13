@@ -137,6 +137,7 @@ All images use `512 x 512` point samples at the center of the named plane:
 | Images | Fixture and asset settings | Observed asset metadata |
 |---|---|---|
 | `pycoco-sphere-gradient-*` | PyCoCo sphere OBJ; dense grid; Gradient Taylor; resolution 64; z slice | 1,520 triangles; 262,144 grid entries |
+| `pycoco-pressure-lubricated-cam-distance` | PyCoCo pressure-lubricated cam OBJ; dense grid; trilinear; resolution 64; x slice | 7,356 triangles; 262,144 cells and 274,625 coefficients |
 | `nagata-cone-adaptive-*` | enhanced Nagata cone NSM; adaptive tricubic; start depth 2; maximum depth 7; tolerance 0.002; x slice | 2,432 triangles; 35,529 nodes; measured asset maximum 0.0162801 |
 | `sdflib-gear-exact-distance` | SdfLib Gear OBJ; exact influence octree; start depth 2; maximum depth 8; 48 triangles per leaf; z slice | 6,882 triangles; 2,903,649 nodes |
 

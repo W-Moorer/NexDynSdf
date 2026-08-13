@@ -35,10 +35,16 @@ function Convert-Visualization([string]$Asset, [string]$Stem, [string[]]$Argumen
 
 $sphere = Join-Path $scratch 'pycoco-sphere-gradient.nsdf'
 Invoke-Checked $generator @(
-    (Join-Path $repository 'models/pycoco/sphere.obj'), $sphere,
+    (Join-Path $repository 'models/pycoco/obj_library/sphere.obj'), $sphere,
     '--representation', 'grid', '--reconstruction', 'gradient', '--resolution', '64') 'Sphere asset generation failed.'
 Convert-Visualization $sphere 'pycoco-sphere-gradient-distance' @('--axis', 'z', '--mode', 'distance')
 Convert-Visualization $sphere 'pycoco-sphere-gradient-normal' @('--axis', 'z', '--mode', 'normal')
+
+$cam = Join-Path $scratch 'pycoco-pressure-lubricated-cam-trilinear.nsdf'
+Invoke-Checked $generator @(
+    (Join-Path $repository 'models/pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj'), $cam,
+    '--representation', 'grid', '--reconstruction', 'trilinear', '--resolution', '64') 'Cam asset generation failed.'
+Convert-Visualization $cam 'pycoco-pressure-lubricated-cam-distance' @('--axis', 'x', '--mode', 'distance')
 
 $cone = Join-Path $scratch 'nagata-cone-adaptive.nsdf'
 Invoke-Checked $generator @(

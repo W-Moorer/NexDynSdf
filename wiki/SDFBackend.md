@@ -35,6 +35,8 @@ OBJ / NSM v1
 - `src/asset.cpp`: builders, octrees, `.nsdf`, query dispatch.
 - `src/c_api.cpp`: C ABI and exception/status translation.
 - `tools/nexsdfviz.cpp`: deterministic distance/normal/depth/error slices.
+- `tools/nexsdfmodelaudit.cpp`: complete catalog parser/topology audit using
+  the production mesh import and exact-surface preparation path.
 - `scripts/generate_readme_images.ps1`: reproducible reference-fixture images.
 - `models/`: canonical first-party and SdfLib model collection used by tests,
   benchmarks, examples, and visualization generation.
@@ -44,9 +46,11 @@ OBJ / NSM v1
 `tests/unit_tests.cpp` checks exact distance, BVH against exhaustive triangle
 scan, exact-octree conservation, reconstruction derivatives, adaptive
 coarse/fine continuity, serialization, corruption rejection, and C ABI status.
-`tests/model_tests.cpp` checks catalogued PyCoCo, SdfLib, and Nagata
-models. `tests/visualization_smoke.cmake` exercises all five visualization
-modes against a generated asset.
+`tests/model_tests.cpp` checks the core PyCoCo, SdfLib, and Nagata generation
+fixtures. `tests/model_catalog_smoke.cmake` additionally parses all 32 OBJ/NSM
+inputs, verifies the expected 29 runtime-ready assets, and checks all 34
+catalog hashes and sizes. `tests/visualization_smoke.cmake` exercises all five
+visualization modes against a generated asset.
 
 ## Known limitations
 
@@ -67,11 +71,13 @@ Date: 2026-08-13.
 
 Sources: `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
 `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
-`scripts/generate_readme_images.ps1`, `models/MANIFEST.md`.
+`tools/nexsdfmodelaudit.cpp`, `scripts/generate_readme_images.ps1`,
+`scripts/update_model_catalog.ps1`, `scripts/update_model_audit.ps1`,
+`models/MANIFEST.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
-`tests/model_tests.cpp`, `tests/visualization_smoke.cmake`,
-`tests/install_consumer/main.c`.
+`tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
+`tests/visualization_smoke.cmake`, `tests/install_consumer/main.c`.
 
 Commands run: Release static and shared unit/regression/integration passed;
 README image generation and installed-package consumption passed. The final
