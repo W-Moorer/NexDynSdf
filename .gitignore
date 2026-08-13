@@ -1,0 +1,11 @@
+/build/
+/build-*/
+/out/
+/out-*/
+/build-install-*/
+/out-install-*/
+/.vs/
+/.vscode/
+*.user
+*.suo
+*.nsdf
