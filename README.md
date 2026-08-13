@@ -56,24 +56,42 @@ Implemented representations and reconstructions:
 The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
 files containing per-triangle face identifiers and per-corner normals.
 
-## SdfLib algorithm references
+## Algorithm references
+
+The Gradient Taylor path follows the one-voxel first-order query used by the
+Gradient-SDF paper and the reviewed PyCoCoFastSDF implementation:
+
+1. C. Sommer, L. Sang, D. Schubert, and D. Cremers, “Gradient-SDF: A
+   Semi-Implicit Surface Representation for 3D Reconstruction,” in
+   *Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+   Recognition (CVPR)*, pp. 6270–6279, 2022.
+   [doi:10.1109/CVPR52688.2022.00618](https://doi.org/10.1109/CVPR52688.2022.00618)
+   ([open-access paper](https://openaccess.thecvf.com/content/CVPR2022/html/Sommer_Gradient-SDF_A_Semi-Implicit_Surface_Representation_for_3D_Reconstruction_CVPR_2022_paper.html)).
+
+For a point `x`, NexDynSdf stores one value `phi_j` and unit gradient `g_j` at
+the selected cell center `x_j`, then evaluates
+`phi(x) = phi_j + dot(x - x_j, g_j)` and `grad(phi) = g_j`. This matches the
+paper's first-order query in equations (14)–(15) and PyCoCoFastSDF's
+`GradientSDFVolume.taylor_query`. NexDynSdf currently samples these tuples from
+an exact triangle-mesh surface; it does not implement the paper's RGB-D fusion,
+tracking, photometric bundle adjustment, or hashed sparse voxel system.
 
 The exact and adaptive SdfLib-derived architecture is informed by these two
-papers. Please cite the relevant paper when the corresponding algorithm is
-used in research results:
+papers:
 
-1. E. Pujol and A. Chica, “Triangle Influence Supersets for Fast Distance
+2. E. Pujol and A. Chica, “Triangle Influence Supersets for Fast Distance
    Computation,” *Computer Graphics Forum*, vol. 42, no. 6, article e14861,
    2023. [doi:10.1111/cgf.14861](https://doi.org/10.1111/cgf.14861).
-2. E. Pujol and A. Chica, “Adaptive approximation of signed distance fields
+3. E. Pujol and A. Chica, “Adaptive approximation of signed distance fields
    through piecewise continuous interpolation,” *Computers & Graphics*,
    vol. 114, pp. 337–346, 2023.
    [doi:10.1016/j.cag.2023.06.020](https://doi.org/10.1016/j.cag.2023.06.020).
 
-The first paper motivates the exact triangle-influence representation. The
-current implementation uses a conservative AABB/Lipschitz influence filter,
-not the paper's tighter convex-hull/GJK filter. The second paper motivates the
-adaptive trilinear/tricubic representation and its probe-driven subdivision.
+The first SdfLib paper (reference 2) motivates the exact triangle-influence
+representation. The current implementation uses a conservative AABB/Lipschitz
+influence filter, not that paper's tighter convex-hull/GJK filter. The second
+SdfLib paper (reference 3) motivates the adaptive trilinear/tricubic
+representation and its probe-driven subdivision.
 See [`docs/reference-provenance.md`](docs/reference-provenance.md) for the
 paper-to-code boundary and implementation differences.
 
@@ -197,4 +215,5 @@ For a stable cross-module boundary, build shared and use `nexsdf/c_api.h`.
 See `docs/architecture.md`, `docs/algorithms.md`, and
 `docs/reference-provenance.md` for implementation boundaries and attribution.
 The exact runtime contract and file layout are in `docs/runtime-api.md` and
-`docs/asset-format.md`.
+`docs/asset-format.md`. Planned correctness, topology, format, performance, and
+validation work is tracked separately in [`docs/roadmap.md`](docs/roadmap.md).

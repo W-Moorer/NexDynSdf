@@ -65,6 +65,14 @@ visualization modes against a generated asset.
 - Contact search, pair selection, manifold construction, and solver coupling
   remain NexDyn responsibilities and are not implemented here.
 
+## Planned work
+
+The ordered plan for paper-faithful GJK influence filtering, explicit
+multi-shell/cavity policies, NSM regeneration, STL/ENG decisions,
+deterministic CPU parallel/SIMD work, optional GPU experiments, and the common
+accuracy/resource benchmark matrix is maintained in `docs/roadmap.md`. These
+items are planned and must not be described as implemented behavior.
+
 ## Last verified against
 
 Date: 2026-08-13.
@@ -73,7 +81,7 @@ Sources: `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
 `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
 `tools/nexsdfmodelaudit.cpp`, `scripts/generate_readme_images.ps1`,
 `scripts/update_model_catalog.ps1`, `scripts/update_model_audit.ps1`,
-`models/MANIFEST.md`.
+`models/MANIFEST.md`, `docs/roadmap.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
 `tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,

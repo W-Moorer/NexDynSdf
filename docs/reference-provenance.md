@@ -34,6 +34,11 @@ at `models/licenses/SdfLib-LICENSE.txt`.
 
 ## Papers
 
+- Christiane Sommer, Lu Sang, David Schubert, and Daniel Cremers,
+  *Gradient-SDF: A Semi-Implicit Surface Representation for 3D
+  Reconstruction*, Proceedings of the IEEE/CVF Conference on Computer Vision
+  and Pattern Recognition (CVPR), 6270–6279, 2022,
+  [doi:10.1109/CVPR52688.2022.00618](https://doi.org/10.1109/CVPR52688.2022.00618).
 - Eduard Pujol and Antonio Chica, *Triangle Influence Supersets for Fast
   Distance Computation*, Computer Graphics Forum 42(6), article e14861, 2023,
   [doi:10.1111/cgf.14861](https://doi.org/10.1111/cgf.14861).
@@ -42,7 +47,21 @@ at `models/licenses/SdfLib-LICENSE.txt`.
   114, 337–346, 2023,
   [doi:10.1016/j.cag.2023.06.020](https://doi.org/10.1016/j.cag.2023.06.020).
 
+The IEEE/TUM publisher record gives the Gradient-SDF proceedings pagination as
+6270–6279. The reviewed CVF open-access artifact and the local PyCoCoFastSDF
+PDF display 6280–6289; the formal citation above follows the DOI-linked
+publisher record.
+
 The exact octree uses a conservative AABB/Lipschitz triangle-influence
 superset. It is a deliberately weaker but still exact conservative filter than
 the paper's tighter convex-hull/GJK test. This distinction is exposed in asset
 metadata and must not be described as the original GJK filter.
+
+NexDynSdf's Gradient Taylor query implements the first-order form in equations
+(14)–(15) of the Gradient-SDF paper and matches the reviewed PyCoCoFastSDF
+`GradientSDFVolume.taylor_query` formula. Its data-generation context differs:
+NexDynSdf samples signed distance and unit gradient from a static exact triangle
+mesh, whereas the paper integrates distance and gradient observations from
+RGB-D input and also develops tracking and photometric bundle adjustment. The
+current implementation therefore claims the local reconstruction rule, not the
+paper's complete reconstruction system or sparse hashed storage architecture.
