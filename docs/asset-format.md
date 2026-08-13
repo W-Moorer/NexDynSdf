@@ -10,7 +10,8 @@ objects, pointers, STL containers, compiler padding, or host endianness.
 The v1 writer stores:
 
 1. eight-byte magic `N X S D F 00 0D 0A` and format major/minor;
-2. representation and reconstruction identifiers;
+2. representation and reconstruction identifiers, followed in minor version 1
+   by the exact influence-filter identifier;
 3. domain, resolution/depth, and error metadata;
 4. logical and stored node/triangle/coefficient counts;
 5. optional exact mesh vertices and triangles, including face IDs and corner
@@ -33,10 +34,11 @@ acyclic topology, child depth, and representation-specific payload layout.
 
 ## Compatibility policy
 
-The current major version is 1. Unknown major versions are rejected. Minor
-version is recorded but v1 does not yet promise a permanent forward-compatible
-interchange standard. Assets should be reproducibly regenerated from source
-meshes when the major version changes.
+The current format is 1.1. The loader remains compatible with 1.0 assets and
+interprets their missing filter field as `AabbLipschitz`. Unknown major versions
+and unknown newer minor versions are rejected, so the count table is never
+parsed at the wrong byte offsets. Assets should be reproducibly regenerated
+from source meshes when the major version changes.
 
 ## Last verified against
 
@@ -45,6 +47,7 @@ Date: 2026-08-13.
 Sources: `src/asset.cpp`, `src/internal.hpp`.
 
 Tests: dense/exact/adaptive round trips and checksum corruption in
-`tests/unit_tests.cpp`.
+`tests/unit_tests.cpp`; all-filter Gear round trips in
+`tests/influence_tests.cpp`.
 
 Commands: Release static and shared unit suites passed in this session.

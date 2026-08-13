@@ -31,6 +31,8 @@ OBJ / NSM v1
 
 - `src/mesh_io.cpp`: OBJ and NSM v1 import.
 - `src/geometry.cpp`: validation, BVH, exact distance, pseudo-normal sign.
+- `src/influence.cpp`: Pujol-Chica sphere-hull support maps and conservative
+  GJK/Frank-Wolfe intersection certificates.
 - `src/reconstruction.cpp`: trilinear, tricubic, Gradient Taylor.
 - `src/asset.cpp`: builders, octrees, `.nsdf`, query dispatch.
 - `src/c_api.cpp`: C ABI and exception/status translation.
@@ -50,12 +52,12 @@ coarse/fine continuity, serialization, corruption rejection, and C ABI status.
 fixtures. `tests/model_catalog_smoke.cmake` additionally parses all 32 OBJ/NSM
 inputs, verifies the expected 29 runtime-ready assets, and checks all 34
 catalog hashes and sizes. `tests/visualization_smoke.cmake` exercises all five
-visualization modes against a generated asset.
+visualization modes against a generated asset. `tests/influence_tests.cpp`
+compares all three filters with an exhaustive Gear scan at 257 deterministic
+points and checks serialization.
 
 ## Known limitations
 
-- The exact influence superset is a conservative AABB/Lipschitz variant, not
-  the paper's tighter GJK construction.
 - Adaptive termination uses the reference 19-point trapezoidal RMS estimate;
   the reported probe maximum is not a certified whole-cell error bound.
 - Generation is single-threaded CPU code.
@@ -67,23 +69,21 @@ visualization modes against a generated asset.
 
 ## Planned work
 
-The ordered plan for paper-faithful GJK influence filtering, explicit
-multi-shell/cavity policies, NSM regeneration, STL/ENG decisions,
-deterministic CPU parallel/SIMD work, optional GPU experiments, and the common
-accuracy/resource benchmark matrix is maintained in `docs/roadmap.md`. These
-items are planned and must not be described as implemented behavior.
+M0 quantitative validation and M1 paper-faithful GJK/Frank-Wolfe filtering are
+implemented. Remaining multi-shell/cavity, NSM/STL/ENG, CPU parallel/SIMD, and
+optional GPU work is maintained in `docs/roadmap.md`.
 
 ## Last verified against
 
 Date: 2026-08-13.
 
-Sources: `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
+Sources: `src/geometry.cpp`, `src/influence.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
 `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
 `tools/nexsdfmodelaudit.cpp`, `scripts/generate_readme_images.ps1`,
 `scripts/update_model_catalog.ps1`, `scripts/update_model_audit.ps1`,
 `models/MANIFEST.md`, `docs/roadmap.md`.
 
-Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
+Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`, `tests/influence_tests.cpp`,
 `tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
 `tests/visualization_smoke.cmake`, `tests/install_consumer/main.c`.
 

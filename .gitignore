@@ -2,6 +2,7 @@
 /build-*/
 /out/
 /out-*/
+/tmp/
 /build-install-*/
 /out-install-*/
 /.vs/

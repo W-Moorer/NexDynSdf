@@ -796,6 +796,20 @@ Aabb triangle_bounds(const SurfaceMesh& mesh, std::uint32_t triangle_index)
     return box;
 }
 
+double point_triangle_distance(
+    const SurfaceMesh& mesh,
+    std::uint32_t triangle_index,
+    Vec3 point)
+{
+    const Triangle& triangle = mesh.triangles.at(triangle_index);
+    const ClosestPoint closest = closest_point_on_triangle(
+        point,
+        mesh.vertices.at(triangle.vertex[0]),
+        mesh.vertices.at(triangle.vertex[1]),
+        mesh.vertices.at(triangle.vertex[2]));
+    return norm(point - closest.point);
+}
+
 double aabb_distance(Aabb a, Aabb b) noexcept
 {
     double squared = 0.0;

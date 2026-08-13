@@ -154,6 +154,27 @@ nexsdf_status nexsdf_asset_get_info(
     return NEXSDF_STATUS_OK;
 }
 
+nexsdf_status nexsdf_asset_get_provenance(
+    const nexsdf_asset* asset,
+    nexsdf_asset_provenance* out_provenance)
+{
+    if (!asset || !out_provenance ||
+        out_provenance->struct_size != sizeof(nexsdf_asset_provenance))
+    {
+        return fail(NEXSDF_STATUS_INVALID_ARGUMENT,
+            "asset and a size-initialized provenance structure are required");
+    }
+    const nexsdf::AssetInfo& source = asset->asset.info();
+    const std::uint32_t size = out_provenance->struct_size;
+    std::memset(out_provenance, 0, sizeof(*out_provenance));
+    out_provenance->struct_size = size;
+    out_provenance->influence_filter =
+        static_cast<std::uint32_t>(source.influence_filter);
+    out_provenance->candidate_index_count = source.candidate_index_count;
+    last_error.clear();
+    return NEXSDF_STATUS_OK;
+}
+
 nexsdf_status nexsdf_query(
     const nexsdf_asset* asset,
     const double point[3],

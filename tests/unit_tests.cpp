@@ -187,33 +187,54 @@ void test_dense_continuity()
 
 void test_exact_octree()
 {
-    nexsdf::BuildOptions options;
-    options.representation = nexsdf::Representation::ExactInfluenceOctree;
-    options.reconstruction = nexsdf::Reconstruction::Exact;
-    options.maximum_depth = 4;
-    options.start_depth = 1;
-    options.maximum_triangles_per_leaf = 2;
-    options.relative_padding = 0.25;
     const nexsdf::SurfaceMesh cube = cube_mesh();
     const nexsdf::ExactSurface brute(cube);
     std::vector<std::uint32_t> all_triangles(cube.triangles.size());
     for (std::size_t i = 0; i < all_triangles.size(); ++i)
         all_triangles[i] = static_cast<std::uint32_t>(i);
-    const nexsdf::Asset tree = nexsdf::build(cube, options);
-    check(tree.info().node_count > 1, "exact influence tree subdivides");
-    for (int z = -4; z <= 4; ++z)
-    for (int y = -4; y <= 4; ++y)
-    for (int x = -4; x <= 4; ++x)
+    for (const nexsdf::InfluenceFilter filter : {
+             nexsdf::InfluenceFilter::AabbLipschitz,
+             nexsdf::InfluenceFilter::PaperGjk,
+             nexsdf::InfluenceFilter::PaperFrankWolfe})
     {
-        const nexsdf::Vec3 point{0.3 * x, 0.3 * y, 0.3 * z};
-        const nexsdf::QueryResult accelerated = tree.query(point);
-        const nexsdf::QueryResult reference = brute.query(point);
-        const nexsdf::QueryResult exhaustive = brute.query_subset(
-            point, all_triangles.data(), all_triangles.size());
-        near(reference.phi, exhaustive.phi, 1.0e-12,
-            "exact-surface BVH agrees with exhaustive triangle scan");
-        near(accelerated.phi, reference.phi, 1.0e-12,
-            "exact octree agrees with brute-force triangle distance");
+        nexsdf::BuildOptions options;
+        options.representation = nexsdf::Representation::ExactInfluenceOctree;
+        options.reconstruction = nexsdf::Reconstruction::Exact;
+        options.influence_filter = filter;
+        options.maximum_depth = 4;
+        options.start_depth = 1;
+        options.maximum_triangles_per_leaf = 2;
+        options.relative_padding = 0.25;
+        const nexsdf::Asset tree = nexsdf::build(cube, options);
+        check(tree.info().node_count > 1, "exact influence tree subdivides");
+        check(tree.info().influence_filter == filter &&
+              tree.info().candidate_index_count != 0,
+            "exact influence tree records filter provenance");
+        for (int z = -4; z <= 4; ++z)
+        for (int y = -4; y <= 4; ++y)
+        for (int x = -4; x <= 4; ++x)
+        {
+            const nexsdf::Vec3 point{0.3 * x, 0.3 * y, 0.3 * z};
+            const nexsdf::QueryResult accelerated = tree.query(point);
+            const nexsdf::QueryResult reference = brute.query(point);
+            const nexsdf::QueryResult exhaustive = brute.query_subset(
+                point, all_triangles.data(), all_triangles.size());
+            near(reference.phi, exhaustive.phi, 1.0e-12,
+                "exact-surface BVH agrees with exhaustive triangle scan");
+            near(accelerated.phi, reference.phi, 1.0e-12,
+                "exact influence filter agrees with brute-force triangle distance");
+            const bool unique_reference =
+                std::abs(std::abs(point.x) - std::abs(point.y)) > 1.0e-12 &&
+                std::abs(std::abs(point.x) - std::abs(point.z)) > 1.0e-12 &&
+                std::abs(std::abs(point.y) - std::abs(point.z)) > 1.0e-12;
+            if (unique_reference)
+            {
+                check(accelerated.face_id == reference.face_id &&
+                      accelerated.feature == reference.feature &&
+                      nexsdf::norm(accelerated.witness - reference.witness) <= 1.0e-12,
+                    "exact influence filter preserves unique nearest feature and witness");
+            }
+        }
     }
 }
 
@@ -331,6 +352,11 @@ void test_serialization_and_c_api()
         "C API returns asset metadata");
     check(info.has_measured_error == 0,
         "dense C API metadata distinguishes unmeasured error from zero error");
+    nexsdf_asset_provenance provenance{};
+    provenance.struct_size = sizeof(provenance);
+    check(nexsdf_asset_get_provenance(handle, &provenance) == NEXSDF_STATUS_OK &&
+          provenance.influence_filter == 0,
+        "C API exposes size-versioned asset provenance without growing legacy info");
     const double points[2][4] = {{1.2, 0.1, 0.2, 99.0}, {0.1, 0.2, 0.3, 99.0}};
     nexsdf_query_result results[2]{};
     const nexsdf_status batch_status = nexsdf_query_batch(
@@ -403,6 +429,8 @@ void test_octree_serialization()
         options.maximum_triangles_per_leaf = 2;
         options.error_tolerance = 0.06;
         options.relative_padding = 0.25;
+        if (representation == nexsdf::Representation::ExactInfluenceOctree)
+            options.influence_filter = nexsdf::InfluenceFilter::PaperFrankWolfe;
         const nexsdf::Asset source = nexsdf::build(cube_mesh(), options);
         const std::filesystem::path path = temporary_asset_path(
             representation == nexsdf::Representation::ExactInfluenceOctree
@@ -421,6 +449,13 @@ void test_octree_serialization()
             "octree NSDF preserves query capability flags");
         check(loaded.info().triangle_count == source.info().triangle_count,
             "octree NSDF preserves source triangle metadata");
+        check(loaded.info().influence_filter == source.info().influence_filter &&
+              loaded.info().candidate_index_count == source.info().candidate_index_count,
+            "octree NSDF preserves influence provenance");
+        check(after.face_id == before.face_id && after.feature == before.feature &&
+              after.branch_signature == before.branch_signature &&
+              nexsdf::norm(after.witness - before.witness) == 0.0,
+            "exact octree round trip preserves feature, witness, and branch bit-for-bit");
         std::error_code error;
         std::filesystem::remove(path, error);
     }

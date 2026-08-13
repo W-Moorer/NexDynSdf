@@ -20,10 +20,12 @@ int main(int argc, char** argv)
                   << "format=" << info.format_major << '.' << info.format_minor << '\n'
                   << "representation=" << static_cast<std::uint32_t>(info.representation) << '\n'
                   << "reconstruction=" << static_cast<std::uint32_t>(info.reconstruction) << '\n'
+                  << "influence_filter=" << static_cast<std::uint32_t>(info.influence_filter) << '\n'
                   << "domain_min=" << info.domain.minimum.x << ' ' << info.domain.minimum.y << ' ' << info.domain.minimum.z << '\n'
                   << "domain_max=" << info.domain.maximum.x << ' ' << info.domain.maximum.y << ' ' << info.domain.maximum.z << '\n'
                   << "nodes=" << info.node_count << " coefficients=" << info.coefficient_count
-                  << " triangles=" << info.triangle_count << '\n';
+                  << " triangles=" << info.triangle_count
+                  << " candidate_indices=" << info.candidate_index_count << '\n';
         if (argc == 5)
         {
             const nexsdf::Vec3 point{std::stod(argv[2]), std::stod(argv[3]), std::stod(argv[4])};

@@ -61,6 +61,17 @@ Aabb mesh_bounds(const SurfaceMesh& mesh);
 Aabb padded_bounds(const SurfaceMesh& mesh, const BuildOptions& options);
 double aabb_distance(Aabb a, Aabb b) noexcept;
 Aabb triangle_bounds(const SurfaceMesh& mesh, std::uint32_t triangle_index);
+double point_triangle_distance(
+    const SurfaceMesh& mesh,
+    std::uint32_t triangle_index,
+    Vec3 point);
+
+bool paper_influence_intersects(
+    const SurfaceMesh& mesh,
+    const Aabb& box,
+    std::uint32_t reference_triangle,
+    std::uint32_t candidate_triangle,
+    InfluenceFilter filter);
 
 std::array<double, 8> trilinear_samples(
     const ExactSurface& surface,

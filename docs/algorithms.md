@@ -26,9 +26,9 @@ identifier, closest feature, and a deterministic branch signature are retained.
   grid vertex; tricubic stores one eight-component jet per grid vertex;
   Gradient Taylor stores one value/unit-gradient tuple per cell centre.
 - `ExactInfluenceOctree`: leaves retain a conservative superset of triangles
-  that can define the nearest surface. The current filter uses an AABB lower
-  bound against a center-distance-plus-cell-radius Lipschitz upper bound. Leaf
-  queries remain exact and return witness/feature data.
+  that can define the nearest surface. Three selectable filters are available:
+  `AabbLipschitz`, `PaperGjk`, and `PaperFrankWolfe`. Leaf queries remain exact
+  and return witness/feature data.
 - `AdaptivePiecewiseOctree`: leaves store trilinear or tricubic polynomials and
   subdivide when the weighted 19-point trapezoidal RMS estimate exceeds the
   requested tolerance. The maximum absolute error at those probes is recorded
@@ -37,6 +37,32 @@ identifier, closest feature, and a deterministic branch signature are retained.
 
 Representation and reconstruction are separate configuration axes. Exact
 influence octrees do not use interpolation.
+
+## Exact triangle influence filters
+
+The reference `AabbLipschitz` filter compares each triangle AABB lower bound
+with `abs(phi(center)) + half_diagonal`. The two paper filters implement the
+Pujol-Chica construction. For the closest triangle `Tc` at a selected cell
+corner, eight spheres are centered at the cell corners and have radii equal to
+their unsigned distance to `Tc`. Their convex hull is a superset of every point
+that can be closer to some point in the cell than `Tc`. A candidate `Tf` may
+therefore be rejected only when it provably does not intersect that convex
+hull.
+
+`PaperGjk` uses support maps for the sphere hull, candidate triangle, and their
+Minkowski difference. A candidate is rejected only on a negative support-plane
+certificate. `PaperFrankWolfe` erodes all sphere radii by their minimum, then
+minimizes distance to the resulting Minkowski difference; it rejects only when
+the support point supplies a separating axis outside the minimum-radius sphere.
+Termination margins are `256 * epsilon * geometry_scale`. Duplicate support,
+degenerate arithmetic, or iteration exhaustion retain the triangle. These
+choices may reduce filtering efficiency but cannot create an incorrect
+discard.
+
+Like the paper's reported 1-corner heuristic, the reference triangle is the
+nearest triangle at the cell corner closest to the candidate centroid. Using a
+subset of reference triangles can retain redundant candidates; it does not
+invalidate a rejection certified against the selected reference.
 
 ## Error semantics
 

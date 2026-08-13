@@ -80,6 +80,13 @@ enum class Reconstruction : std::uint32_t
     GradientTaylor = 3
 };
 
+enum class InfluenceFilter : std::uint32_t
+{
+    AabbLipschitz = 0,
+    PaperGjk = 1,
+    PaperFrankWolfe = 2
+};
+
 enum class Status : std::uint32_t
 {
     Ok = 0,
@@ -132,6 +139,7 @@ struct BuildOptions
 {
     Representation representation{Representation::DenseGrid};
     Reconstruction reconstruction{Reconstruction::Trilinear};
+    InfluenceFilter influence_filter{InfluenceFilter::AabbLipschitz};
     std::array<std::uint32_t, 3> resolution{32, 32, 32};
     std::uint32_t maximum_depth{7};
     std::uint32_t start_depth{1};
@@ -145,9 +153,10 @@ struct BuildOptions
 struct AssetInfo
 {
     std::uint32_t format_major{1};
-    std::uint32_t format_minor{0};
+    std::uint32_t format_minor{1};
     Representation representation{Representation::DenseGrid};
     Reconstruction reconstruction{Reconstruction::Trilinear};
+    InfluenceFilter influence_filter{InfluenceFilter::AabbLipschitz};
     Aabb domain{};
     std::array<std::uint32_t, 3> resolution{};
     std::uint32_t maximum_depth{0};
@@ -156,6 +165,7 @@ struct AssetInfo
     std::uint64_t node_count{0};
     std::uint64_t coefficient_count{0};
     std::uint64_t triangle_count{0};
+    std::uint64_t candidate_index_count{0};
     bool has_measured_error{false};
 };
 

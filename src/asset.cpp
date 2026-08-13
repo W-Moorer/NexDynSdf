@@ -94,6 +94,18 @@ void validate_options(const BuildOptions& options)
     {
         throw std::invalid_argument("maximum triangles per leaf must be positive");
     }
+    if (options.influence_filter != InfluenceFilter::AabbLipschitz &&
+        options.influence_filter != InfluenceFilter::PaperGjk &&
+        options.influence_filter != InfluenceFilter::PaperFrankWolfe)
+    {
+        throw std::invalid_argument("unknown exact influence filter");
+    }
+    if (options.representation != Representation::ExactInfluenceOctree &&
+        options.influence_filter != InfluenceFilter::AabbLipschitz)
+    {
+        throw std::invalid_argument(
+            "paper influence filters apply only to exact influence octrees");
+    }
     if (options.representation == Representation::DenseGrid)
     {
         for (const std::uint32_t value : options.resolution)
@@ -257,20 +269,70 @@ void build_exact_node(
     for (std::size_t child = 0; child < 8; ++child)
     {
         const Aabb box = child_box(node_copy.box, child);
-        const Vec3 center = box_center(box);
-        const QueryResult center_query = data.exact_surface->query_subset(
-            center, candidates.data(), candidates.size());
-        const double radius = 0.5 * norm(box.extent());
-        const double upper_bound = std::abs(center_query.phi) + radius;
         std::vector<std::uint32_t> filtered;
         filtered.reserve(candidates.size());
-        for (const std::uint32_t triangle : candidates)
+        if (options.influence_filter == InfluenceFilter::AabbLipschitz)
         {
-            if (detail::aabb_distance(box, detail::triangle_bounds(data.mesh, triangle)) <=
-                upper_bound + 16.0 * std::numeric_limits<double>::epsilon() *
-                    std::max(1.0, upper_bound))
+            const Vec3 center = box_center(box);
+            const QueryResult center_query = data.exact_surface->query_subset(
+                center, candidates.data(), candidates.size());
+            const double radius = 0.5 * norm(box.extent());
+            const double upper_bound = std::abs(center_query.phi) + radius;
+            for (const std::uint32_t triangle : candidates)
             {
-                filtered.push_back(triangle);
+                if (detail::aabb_distance(box, detail::triangle_bounds(data.mesh, triangle)) <=
+                    upper_bound + 16.0 * std::numeric_limits<double>::epsilon() *
+                        std::max(1.0, upper_bound))
+                {
+                    filtered.push_back(triangle);
+                }
+            }
+        }
+        else
+        {
+            std::array<std::uint32_t, 8> corner_reference{};
+            for (std::size_t corner = 0; corner < 8; ++corner)
+            {
+                const Vec3 point = box_corner(box, corner);
+                double nearest = std::numeric_limits<double>::infinity();
+                for (const std::uint32_t triangle : candidates)
+                {
+                    const double distance =
+                        detail::point_triangle_distance(data.mesh, triangle, point);
+                    if (distance < nearest ||
+                        (distance == nearest && triangle < corner_reference[corner]))
+                    {
+                        nearest = distance;
+                        corner_reference[corner] = triangle;
+                    }
+                }
+            }
+            for (const std::uint32_t triangle_index : candidates)
+            {
+                const Triangle& triangle = data.mesh.triangles[triangle_index];
+                const Vec3 centroid = (
+                    data.mesh.vertices[triangle.vertex[0]] +
+                    data.mesh.vertices[triangle.vertex[1]] +
+                    data.mesh.vertices[triangle.vertex[2]]) / 3.0;
+                std::size_t nearest_corner = 0;
+                double nearest_squared = squared_norm(centroid - box_corner(box, 0));
+                for (std::size_t corner = 1; corner < 8; ++corner)
+                {
+                    const double candidate_squared =
+                        squared_norm(centroid - box_corner(box, corner));
+                    if (candidate_squared < nearest_squared)
+                    {
+                        nearest_squared = candidate_squared;
+                        nearest_corner = corner;
+                    }
+                }
+                const std::uint32_t reference = corner_reference[nearest_corner];
+                if (reference == triangle_index || detail::paper_influence_intersects(
+                        data.mesh, box, reference, triangle_index,
+                        options.influence_filter))
+                {
+                    filtered.push_back(triangle_index);
+                }
             }
         }
         if (filtered.empty())
@@ -297,6 +359,7 @@ void build_exact_octree(detail::AssetData& data, const BuildOptions& options)
     build_exact_node(data, options, 0, std::move(triangles));
     data.info.node_count = data.nodes.size();
     data.info.coefficient_count = 0;
+    data.info.candidate_index_count = data.triangle_indices.size();
 }
 
 std::array<Vec3, 19> error_points(const Aabb& box)
@@ -699,6 +762,7 @@ std::shared_ptr<const AssetData> build_asset_data(
     data->mesh = data->exact_surface->mesh();
     data->info.representation = options.representation;
     data->info.reconstruction = options.reconstruction;
+    data->info.influence_filter = options.influence_filter;
     data->info.domain = padded_bounds(data->mesh, options);
     data->info.maximum_depth = options.maximum_depth;
     data->info.requested_error_tolerance =
@@ -975,6 +1039,17 @@ void validate_loaded_layout(const AssetData& data)
     {
         throw std::runtime_error("NSDF error metadata is invalid");
     }
+    if (data.info.influence_filter != InfluenceFilter::AabbLipschitz &&
+        data.info.influence_filter != InfluenceFilter::PaperGjk &&
+        data.info.influence_filter != InfluenceFilter::PaperFrankWolfe)
+    {
+        throw std::runtime_error("NSDF influence-filter metadata is invalid");
+    }
+    if (data.info.representation != Representation::ExactInfluenceOctree &&
+        data.info.influence_filter != InfluenceFilter::AabbLipschitz)
+    {
+        throw std::runtime_error("non-exact NSDF declares an exact influence filter");
+    }
     if (data.info.representation == Representation::DenseGrid)
     {
         if (!data.nodes.empty() || !data.triangle_indices.empty())
@@ -1063,6 +1138,8 @@ void save_asset(const AssetData& data, const std::string& path)
     writer.u32(data.info.format_minor);
     writer.u32(static_cast<std::uint32_t>(data.info.representation));
     writer.u32(static_cast<std::uint32_t>(data.info.reconstruction));
+    if (data.info.format_minor >= 1)
+        writer.u32(static_cast<std::uint32_t>(data.info.influence_filter));
     writer.box(data.info.domain);
     for (const std::uint32_t value : data.info.resolution) writer.u32(value);
     writer.u32(data.info.maximum_depth);
@@ -1164,12 +1241,15 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     auto data = std::make_shared<AssetData>();
     data->info.format_major = reader.u32("format major");
     data->info.format_minor = reader.u32("format minor");
-    if (data->info.format_major != 1)
+    if (data->info.format_major != 1 || data->info.format_minor > 1)
     {
         throw std::runtime_error("unsupported NSDF major version");
     }
     data->info.representation = static_cast<Representation>(reader.u32("representation"));
     data->info.reconstruction = static_cast<Reconstruction>(reader.u32("reconstruction"));
+    if (data->info.format_minor >= 1)
+        data->info.influence_filter = static_cast<InfluenceFilter>(
+            reader.u32("influence filter"));
     data->info.domain = reader.box("domain");
     for (std::uint32_t& value : data->info.resolution) value = reader.u32("resolution");
     data->info.maximum_depth = reader.u32("maximum depth");
@@ -1269,6 +1349,7 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     data->info.node_count = logical_node_count;
     data->info.coefficient_count = coefficient_count;
     data->info.triangle_count = logical_triangle_count;
+    data->info.candidate_index_count = index_count;
     validate_loaded_layout(*data);
     if (!data->mesh.triangles.empty())
     {

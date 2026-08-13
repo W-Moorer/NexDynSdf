@@ -41,7 +41,7 @@ Implementation: `tools/nexsdfvalidate.cpp`,
 `docs/validation.md`. The full matrix remains an explicit, machine-dependent
 benchmark run rather than a normal regression test.
 
-## M1: paper-faithful exact influence filtering
+## M1: paper-faithful exact influence filtering (implemented)
 
 Introduce a selectable convex-hull support mapping and GJK/Frank-Wolfe
 intersection implementation following Pujol and Chica alongside the current
@@ -61,6 +61,12 @@ mode during validation.
 
 Acceptance requires zero incorrect discards in the test corpus and no weakening
 of corruption, topology, or out-of-domain checks.
+
+Implementation: `src/influence.cpp` plus selectable `InfluenceFilter` build
+metadata, NSDF 1.1 serialization, a size-versioned C provenance query,
+`tests/influence_tests.cpp`, and `scripts/run_influence_comparison.ps1`.
+The AABB/Lipschitz path remains the default reference until a future API policy
+change explicitly promotes another filter.
 
 ## M2: explicit multi-component and cavity semantics
 

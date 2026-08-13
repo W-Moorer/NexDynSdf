@@ -19,7 +19,8 @@ void usage()
               << "  --reconstruction trilinear|tricubic|gradient|exact\n"
               << "  --resolution N  --max-depth N  --start-depth N\n"
               << "  --max-triangles N  --tolerance X  --padding X\n"
-              << "  --absolute-padding X  --derivative-step X\n";
+              << "  --absolute-padding X  --derivative-step X\n"
+              << "  --influence aabb|gjk|frank-wolfe\n";
 }
 
 std::string lower(std::string value)
@@ -44,6 +45,14 @@ nexsdf::Reconstruction reconstruction(const std::string& value)
     if (value == "gradient") return nexsdf::Reconstruction::GradientTaylor;
     if (value == "exact") return nexsdf::Reconstruction::Exact;
     throw std::invalid_argument("unknown reconstruction: " + value);
+}
+
+nexsdf::InfluenceFilter influence_filter(const std::string& value)
+{
+    if (value == "aabb") return nexsdf::InfluenceFilter::AabbLipschitz;
+    if (value == "gjk") return nexsdf::InfluenceFilter::PaperGjk;
+    if (value == "frank-wolfe") return nexsdf::InfluenceFilter::PaperFrankWolfe;
+    throw std::invalid_argument("unknown influence filter: " + value);
 }
 
 std::string next(int& index, int count, char** values, const char* option)
@@ -100,6 +109,7 @@ int main(int argc, char** argv)
             else if (option == "--padding") options.relative_padding = std::stod(next(i, argc, argv, option.c_str()));
             else if (option == "--absolute-padding") options.absolute_padding = std::stod(next(i, argc, argv, option.c_str()));
             else if (option == "--derivative-step") options.derivative_step = std::stod(next(i, argc, argv, option.c_str()));
+            else if (option == "--influence") options.influence_filter = influence_filter(next(i, argc, argv, option.c_str()));
             else if (option == "--help") { usage(); return 0; }
             else throw std::invalid_argument("unknown option: " + option);
         }

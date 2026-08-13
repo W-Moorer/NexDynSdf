@@ -6,7 +6,9 @@
   continuity, `.nsdf` round trips/corruption, and pure C ABI.
 - `regression`: core SDF generation fixtures plus a complete 34-asset catalog
   integrity audit (32 OBJ/NSM parser inputs, 29 runtime-ready assets), and the
-  deterministic quantitative-validation schema smoke test.
+  deterministic quantitative-validation schema smoke test. The Gear influence
+  regression also requires AABB, GJK, and Frank-Wolfe leaves to equal an
+  exhaustive scan at 257 deterministic points.
 - `integration`: generates a real `.nsdf` and validates all five headless
   visualization output modes.
 - `benchmark`: Gear exact-surface BVH against exhaustive triangle queries;
@@ -37,6 +39,22 @@ The versioned TSV also records raw-gradient and normal error, Eikonal residual,
 asset bytes, process peak working set, build/query timing, compiler,
 configuration, backend, worker count, model hash, seed, warm-up, and sample
 counts. See `docs/validation.md` for definitions and resource caveats.
+
+## M1 influence comparison observation
+
+`scripts/run_influence_comparison.ps1` ran Gear at depth 5 with a 64-triangle
+leaf threshold, 4,096 validation points, and 10 warmed query repetitions. All
+filters had zero maximum distance error and approximately `7.11e-15` sampled
+symmetric surface error.
+
+| Filter | Candidate indices | Asset bytes | Build seconds | Queries/s |
+|---|---:|---:|---:|---:|
+| AABB/Lipschitz | 3,920,309 | 20,291,884 | 2.47 | 103,010 |
+| Paper GJK | 464,907 | 4,292,932 | 13.68 | 182,552 |
+| Paper Frank-Wolfe | 470,513 | 4,327,836 | 18.64 | 239,910 |
+
+These host-specific observations are not pass thresholds. They expose the
+offline-build versus runtime-size/query tradeoff.
 
 ## Model collection
 
@@ -79,6 +97,7 @@ Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
 `tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
 `tests/visualization_smoke.cmake`,
 `tests/validation_smoke.cmake`,
+`tests/influence_tests.cpp`,
 `tests/benchmark_exact.cpp`.
 
 Results recorded before documentation finalization:

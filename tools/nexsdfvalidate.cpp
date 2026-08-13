@@ -57,6 +57,7 @@ void usage()
         << "  --max-triangles N  --tolerance X  --padding X\n"
         << "  --field-samples N  --surface-samples N\n"
         << "  --query-repetitions N  --seed N\n"
+        << "  --influence aabb|gjk|frank-wolfe\n"
         << "  --append  append a result row to an existing matching TSV\n";
 }
 
@@ -105,6 +106,25 @@ nexsdf::Reconstruction parse_reconstruction(const std::string& value)
     if (value == "gradient") return nexsdf::Reconstruction::GradientTaylor;
     if (value == "exact") return nexsdf::Reconstruction::Exact;
     throw std::invalid_argument("unknown reconstruction: " + value);
+}
+
+nexsdf::InfluenceFilter parse_influence_filter(const std::string& value)
+{
+    if (value == "aabb") return nexsdf::InfluenceFilter::AabbLipschitz;
+    if (value == "gjk") return nexsdf::InfluenceFilter::PaperGjk;
+    if (value == "frank-wolfe") return nexsdf::InfluenceFilter::PaperFrankWolfe;
+    throw std::invalid_argument("unknown influence filter: " + value);
+}
+
+const char* influence_filter_name(nexsdf::InfluenceFilter value)
+{
+    switch (value)
+    {
+    case nexsdf::InfluenceFilter::AabbLipschitz: return "aabb";
+    case nexsdf::InfluenceFilter::PaperGjk: return "gjk";
+    case nexsdf::InfluenceFilter::PaperFrankWolfe: return "frank-wolfe";
+    }
+    return "unknown";
 }
 
 const char* representation_name(nexsdf::Representation value)
@@ -296,6 +316,7 @@ void write_header(std::ostream& stream)
         << "schema\tmodel\tmodel_hash_fnv1a64\trepresentation\treconstruction"
         << "\tresolution_x\tresolution_y\tresolution_z\tfield_samples\tsurface_samples"
         << "\tseed\tcompiler\tconfiguration\tbuild_backend\tworker_threads"
+        << "\tinfluence_filter\tcandidate_index_count"
         << "\tbuild_seconds\tquery_seconds\tqueries_per_second\tasset_bytes"
         << "\tprocess_peak_working_set_bytes"
         << "\tdistance_rms\tdistance_p95\tdistance_max"
@@ -346,6 +367,7 @@ int main(int argc, char** argv)
             else if (option == "--surface-samples") options.surface_samples = positive_size(next(i, argc, argv, option.c_str()), option.c_str());
             else if (option == "--query-repetitions") options.query_repetitions = positive_size(next(i, argc, argv, option.c_str()), option.c_str());
             else if (option == "--seed") options.seed = std::stoull(next(i, argc, argv, option.c_str()), nullptr, 0);
+            else if (option == "--influence") options.build.influence_filter = parse_influence_filter(next(i, argc, argv, option.c_str()));
             else if (option == "--append") options.append = true;
             else if (option == "--help") { usage(); return 0; }
             else throw std::invalid_argument("unknown option: " + option);
@@ -466,6 +488,8 @@ int main(int argc, char** argv)
             << '\t' << compiler_name()
             << '\t' << build_configuration()
             << "\tscalar\t1"
+            << '\t' << influence_filter_name(asset.info().influence_filter)
+            << '\t' << asset.info().candidate_index_count
             << '\t' << build_seconds
             << '\t' << query_seconds
             << '\t' << (total_queries / query_seconds)

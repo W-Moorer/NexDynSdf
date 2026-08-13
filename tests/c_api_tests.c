@@ -21,6 +21,17 @@ int main(void)
         fprintf(stderr, "null asset was not rejected\n");
         return 1;
     }
+    {
+        nexsdf_asset_provenance provenance;
+        memset(&provenance, 0, sizeof(provenance));
+        provenance.struct_size = (uint32_t)sizeof(provenance);
+        if (nexsdf_asset_get_provenance(asset, &provenance) !=
+            NEXSDF_STATUS_INVALID_ARGUMENT)
+        {
+            fprintf(stderr, "null provenance asset was not rejected\n");
+            return 1;
+        }
+    }
     if (nexsdf_query(asset, point, &result) != NEXSDF_STATUS_INVALID_ARGUMENT)
     {
         fprintf(stderr, "null query asset was not rejected\n");

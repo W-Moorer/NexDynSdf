@@ -46,7 +46,8 @@ review, rendering semantics, exact generation settings, and limitations.
 
 Implemented representations and reconstructions:
 
-- exact conservative triangle-influence octree;
+- exact conservative triangle-influence octree with selectable AABB/Lipschitz,
+  paper GJK, or paper Frank-Wolfe filtering;
 - adaptive piecewise octree;
 - dense regular grid;
 - trilinear scalar reconstruction;
@@ -95,8 +96,9 @@ papers:
    [doi:10.1016/j.cag.2023.06.020](https://doi.org/10.1016/j.cag.2023.06.020).
 
 The first SdfLib paper (reference 2) motivates the exact triangle-influence
-representation. The current implementation uses a conservative AABB/Lipschitz
-influence filter, not that paper's tighter convex-hull/GJK filter. The second
+representation. NexDynSdf implements its convex hull of corner-distance
+spheres with both GJK and Frank-Wolfe support-map tests, while retaining the
+earlier AABB/Lipschitz filter as a selectable baseline. The second
 SdfLib paper (reference 3) motivates the adaptive trilinear/tricubic
 representation and its probe-driven subdivision.
 See [`docs/reference-provenance.md`](docs/reference-provenance.md) for the

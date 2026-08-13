@@ -27,6 +27,7 @@ add_library(NexSdfQuery ${NEXSDF_LIBRARY_TYPE}
     src/asset.cpp
     src/c_api.cpp
     src/geometry.cpp
+    src/influence.cpp
     src/mesh_io.cpp
     src/reconstruction.cpp
 )
@@ -86,6 +87,13 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
         NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
     add_test(NAME nexsdf.models COMMAND nexsdf_model_tests)
     set_tests_properties(nexsdf.models PROPERTIES LABELS regression)
+
+    add_executable(nexsdf_influence_tests tests/influence_tests.cpp)
+    target_link_libraries(nexsdf_influence_tests PRIVATE NexSdf::Query)
+    target_compile_definitions(nexsdf_influence_tests PRIVATE
+        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
+    add_test(NAME nexsdf.influence COMMAND nexsdf_influence_tests)
+    set_tests_properties(nexsdf.influence PROPERTIES LABELS regression)
 
     if(NEXSDF_BUILD_TOOLS)
         add_test(NAME nexsdf.model_catalog

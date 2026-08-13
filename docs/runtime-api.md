@@ -48,6 +48,15 @@ At medial axes or symmetric centers the SDF is not differentiable. Approximate
 reconstructions may return a zero raw gradient there; callers must not assume a
 unit normal exists merely because the scalar value is valid.
 
+## Provenance extension
+
+The original `nexsdf_asset_info` layout is unchanged. Filter/backend metadata
+uses `nexsdf_asset_get_provenance` and a size-versioned
+`nexsdf_asset_provenance` structure. Callers must initialize `struct_size` to
+`sizeof(nexsdf_asset_provenance)`. `influence_filter` identifies AABB (0), GJK
+(1), or Frank-Wolfe (2); `candidate_index_count` is the total number of stored
+leaf indices and is useful for offline size/performance comparisons.
+
 ## Batch behavior
 
 `nexsdf_query_batch` accepts interleaved points through

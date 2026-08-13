@@ -42,6 +42,13 @@ typedef struct nexsdf_asset_info
     uint32_t has_measured_error;
 } nexsdf_asset_info;
 
+typedef struct nexsdf_asset_provenance
+{
+    uint32_t struct_size;
+    uint32_t influence_filter;
+    uint64_t candidate_index_count;
+} nexsdf_asset_provenance;
+
 typedef struct nexsdf_query_result
 {
     double phi;
@@ -74,6 +81,9 @@ NEXSDF_API void nexsdf_asset_close(nexsdf_asset* asset);
 NEXSDF_API nexsdf_status nexsdf_asset_get_info(
     const nexsdf_asset* asset,
     nexsdf_asset_info* out_info);
+NEXSDF_API nexsdf_status nexsdf_asset_get_provenance(
+    const nexsdf_asset* asset,
+    nexsdf_asset_provenance* out_provenance);
 NEXSDF_API nexsdf_status nexsdf_query(
     const nexsdf_asset* asset,
     const double point[3],
