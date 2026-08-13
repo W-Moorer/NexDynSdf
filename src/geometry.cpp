@@ -402,6 +402,220 @@ bool MeshValidation::valid_for_signed_distance() const noexcept
         consistently_oriented && connected_components == 1;
 }
 
+namespace
+{
+
+std::vector<std::vector<std::uint32_t>> triangle_components(
+    const SurfaceMesh& mesh)
+{
+    using Edge = std::pair<std::uint32_t, std::uint32_t>;
+    std::map<Edge, std::vector<std::uint32_t>> uses;
+    for (std::uint32_t triangle_index = 0;
+         triangle_index < mesh.triangles.size(); ++triangle_index)
+    {
+        const Triangle& triangle = mesh.triangles[triangle_index];
+        for (std::size_t edge = 0; edge < 3; ++edge)
+        {
+            const std::uint32_t a = triangle.vertex[edge];
+            const std::uint32_t b = triangle.vertex[(edge + 1) % 3];
+            uses[{std::min(a, b), std::max(a, b)}].push_back(triangle_index);
+        }
+    }
+    std::vector<std::vector<std::uint32_t>> adjacency(mesh.triangles.size());
+    for (const auto& edge : uses)
+    {
+        for (std::size_t i = 1; i < edge.second.size(); ++i)
+        {
+            adjacency[edge.second[0]].push_back(edge.second[i]);
+            adjacency[edge.second[i]].push_back(edge.second[0]);
+        }
+    }
+    std::vector<bool> visited(mesh.triangles.size(), false);
+    std::vector<std::vector<std::uint32_t>> components;
+    for (std::uint32_t seed = 0; seed < mesh.triangles.size(); ++seed)
+    {
+        if (visited[seed]) continue;
+        components.emplace_back();
+        std::vector<std::uint32_t> stack{seed};
+        visited[seed] = true;
+        while (!stack.empty())
+        {
+            const std::uint32_t current = stack.back();
+            stack.pop_back();
+            components.back().push_back(current);
+            for (const std::uint32_t neighbor : adjacency[current])
+            {
+                if (!visited[neighbor])
+                {
+                    visited[neighbor] = true;
+                    stack.push_back(neighbor);
+                }
+            }
+        }
+        std::sort(components.back().begin(), components.back().end());
+    }
+    return components;
+}
+
+double component_solid_angle(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& component,
+    Vec3 point)
+{
+    double total = 0.0;
+    for (const std::uint32_t triangle_index : component)
+    {
+        const Triangle& triangle = mesh.triangles[triangle_index];
+        const Vec3 a = mesh.vertices[triangle.vertex[0]] - point;
+        const Vec3 b = mesh.vertices[triangle.vertex[1]] - point;
+        const Vec3 c = mesh.vertices[triangle.vertex[2]] - point;
+        const double la = norm(a);
+        const double lb = norm(b);
+        const double lc = norm(c);
+        const double numerator = dot(a, cross(b, c));
+        const double denominator = la * lb * lc +
+            dot(a, b) * lc + dot(b, c) * la + dot(c, a) * lb;
+        total += 2.0 * std::atan2(numerator, denominator);
+    }
+    return total;
+}
+
+bool component_contains(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& component,
+    Vec3 point)
+{
+    return std::abs(component_solid_angle(mesh, component, point)) > 2.0 * kPi;
+}
+
+Vec3 component_sample(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& component)
+{
+    const Triangle& triangle = mesh.triangles[component.front()];
+    return (mesh.vertices[triangle.vertex[0]] +
+            mesh.vertices[triangle.vertex[1]] +
+            mesh.vertices[triangle.vertex[2]]) / 3.0;
+}
+
+bool triangle_intersects_triangle(
+    const std::array<Vec3, 3>& first,
+    const std::array<Vec3, 3>& second,
+    double tolerance)
+{
+    const std::array<Vec3, 3> first_edge{
+        first[1] - first[0], first[2] - first[1], first[0] - first[2]};
+    const std::array<Vec3, 3> second_edge{
+        second[1] - second[0], second[2] - second[1], second[0] - second[2]};
+    const Vec3 first_normal = cross(first_edge[0], first_edge[1]);
+    const Vec3 second_normal = cross(second_edge[0], second_edge[1]);
+    std::array<Vec3, 17> axes{};
+    std::size_t axis_count = 0;
+    axes[axis_count++] = first_normal;
+    axes[axis_count++] = second_normal;
+    for (const Vec3 a : first_edge)
+    for (const Vec3 b : second_edge)
+        axes[axis_count++] = cross(a, b);
+    for (const Vec3 edge : first_edge) axes[axis_count++] = cross(first_normal, edge);
+    for (const Vec3 edge : second_edge) axes[axis_count++] = cross(second_normal, edge);
+
+    for (std::size_t axis_index = 0; axis_index < axis_count; ++axis_index)
+    {
+        const Vec3 axis = axes[axis_index];
+        const double axis_length = norm(axis);
+        if (!(axis_length > tolerance)) continue;
+        double first_min = dot(first[0], axis);
+        double first_max = first_min;
+        double second_min = dot(second[0], axis);
+        double second_max = second_min;
+        for (std::size_t i = 1; i < 3; ++i)
+        {
+            first_min = std::min(first_min, dot(first[i], axis));
+            first_max = std::max(first_max, dot(first[i], axis));
+            second_min = std::min(second_min, dot(second[i], axis));
+            second_max = std::max(second_max, dot(second[i], axis));
+        }
+        const double projected_tolerance = tolerance * axis_length;
+        if (first_max < second_min - projected_tolerance ||
+            second_max < first_min - projected_tolerance)
+            return false;
+    }
+    return true;
+}
+
+Aabb component_bounds(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& component)
+{
+    Aabb box = detail::triangle_bounds(mesh, component.front());
+    for (std::size_t i = 1; i < component.size(); ++i)
+    {
+        const Aabb triangle = detail::triangle_bounds(mesh, component[i]);
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            box.minimum[axis] = std::min(box.minimum[axis], triangle.minimum[axis]);
+            box.maximum[axis] = std::max(box.maximum[axis], triangle.maximum[axis]);
+        }
+    }
+    return box;
+}
+
+bool component_surfaces_intersect(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& first,
+    const std::vector<std::uint32_t>& second,
+    double tolerance)
+{
+    if (detail::aabb_distance(
+            component_bounds(mesh, first), component_bounds(mesh, second)) > tolerance)
+        return false;
+    for (const std::uint32_t first_index : first)
+    {
+        const Aabb first_box = detail::triangle_bounds(mesh, first_index);
+        const Triangle& first_triangle = mesh.triangles[first_index];
+        const std::array<Vec3, 3> first_points{
+            mesh.vertices[first_triangle.vertex[0]],
+            mesh.vertices[first_triangle.vertex[1]],
+            mesh.vertices[first_triangle.vertex[2]]};
+        for (const std::uint32_t second_index : second)
+        {
+            if (detail::aabb_distance(
+                    first_box, detail::triangle_bounds(mesh, second_index)) > tolerance)
+                continue;
+            const Triangle& second_triangle = mesh.triangles[second_index];
+            const std::array<Vec3, 3> second_points{
+                mesh.vertices[second_triangle.vertex[0]],
+                mesh.vertices[second_triangle.vertex[1]],
+                mesh.vertices[second_triangle.vertex[2]]};
+            if (triangle_intersects_triangle(first_points, second_points, tolerance))
+                return true;
+        }
+    }
+    return false;
+}
+
+bool component_containment(
+    const SurfaceMesh& mesh,
+    const std::vector<std::uint32_t>& container,
+    const std::vector<std::uint32_t>& candidate,
+    double scale)
+{
+    const Triangle& first = mesh.triangles[candidate.front()];
+    const Vec3 a = mesh.vertices[first.vertex[0]];
+    const Vec3 b = mesh.vertices[first.vertex[1]];
+    const Vec3 c = mesh.vertices[first.vertex[2]];
+    const Vec3 normal = normalized(cross(b - a, c - a));
+    const Vec3 sample = component_sample(mesh, candidate);
+    const double offset = 1024.0 * std::numeric_limits<double>::epsilon() * scale;
+    const bool inward = component_contains(mesh, container, sample - offset * normal);
+    const bool outward = component_contains(mesh, container, sample + offset * normal);
+    if (inward != outward) throw std::invalid_argument(
+        "surface components intersect or touch ambiguously");
+    return inward;
+}
+
+} // namespace
+
 MeshValidation validate_mesh(const SurfaceMesh& mesh)
 {
     MeshValidation result;
@@ -549,8 +763,8 @@ struct ExactSurface::Impl
         }
     };
 
-    explicit Impl(SurfaceMesh input)
-        : mesh(std::move(input))
+    explicit Impl(SurfaceMesh input, CompositionPolicy requested_composition)
+        : mesh(std::move(input)), composition(requested_composition)
     {
         const MeshValidation input_validation = validate_mesh(mesh);
         if (!input_validation.finite || !input_validation.non_degenerate)
@@ -559,18 +773,91 @@ struct ExactSurface::Impl
         }
         weld_identical_vertices(mesh);
         validation = validate_mesh(mesh);
-        if (!validation.valid_for_signed_distance())
+        const bool valid_topology = validation.finite && validation.non_degenerate &&
+            validation.closed_two_manifold && validation.consistently_oriented;
+        if (!valid_topology)
         {
             throw std::invalid_argument(validation.message);
         }
+        if (validation.connected_components != 1 &&
+            composition == CompositionPolicy::SeparateAssets)
+        {
+            throw std::invalid_argument(
+                "multiple components require solid-union or nested-parity composition");
+        }
+        if (composition != CompositionPolicy::SeparateAssets &&
+            composition != CompositionPolicy::SolidUnion &&
+            composition != CompositionPolicy::NestedParity)
+        {
+            throw std::invalid_argument("unknown surface composition policy");
+        }
         orient_outward(mesh);
         bounds = detail::mesh_bounds(mesh);
-        pseudo_normals = build_pseudo_normals(mesh);
-        bvh_triangles.resize(mesh.triangles.size());
-        for (std::size_t i = 0; i < bvh_triangles.size(); ++i)
+        components = triangle_components(mesh);
+        component_parent.assign(components.size(), -1);
+        const double scale = std::max({
+            1.0, bounds.extent().x, bounds.extent().y, bounds.extent().z});
+        std::vector<std::vector<bool>> contains(
+            components.size(), std::vector<bool>(components.size(), false));
+        const double intersection_tolerance =
+            1024.0 * std::numeric_limits<double>::epsilon() * scale;
+        for (std::size_t first = 0; first < components.size(); ++first)
+        for (std::size_t second = first + 1; second < components.size(); ++second)
         {
-            bvh_triangles[i] = static_cast<std::uint32_t>(i);
+            if (component_surfaces_intersect(
+                    mesh, components[first], components[second], intersection_tolerance))
+                throw std::invalid_argument(
+                    "surface components intersect or touch ambiguously");
+            contains[first][second] = component_containment(
+                mesh, components[first], components[second], scale);
+            contains[second][first] = component_containment(
+                mesh, components[second], components[first], scale);
+            if (contains[first][second] && contains[second][first])
+                throw std::invalid_argument("surface component containment is cyclic");
         }
+        for (std::size_t candidate = 0; candidate < components.size(); ++candidate)
+        {
+            std::vector<std::size_t> containers;
+            for (std::size_t container = 0; container < components.size(); ++container)
+            {
+                if (container == candidate) continue;
+                if (contains[container][candidate])
+                    containers.push_back(container);
+            }
+            std::size_t parent = components.size();
+            std::size_t parent_containers = 0;
+            for (const std::size_t container : containers)
+            {
+                std::size_t contained_by_others = 0;
+                for (const std::size_t other : containers)
+                {
+                    if (other != container && contains[other][container])
+                        ++contained_by_others;
+                }
+                if (parent == components.size() || contained_by_others > parent_containers)
+                {
+                    parent = container;
+                    parent_containers = contained_by_others;
+                }
+            }
+            if (parent != components.size()) component_parent[candidate] =
+                static_cast<std::int32_t>(parent);
+        }
+        active_component.assign(components.size(), true);
+        if (composition == CompositionPolicy::SolidUnion)
+        {
+            for (std::size_t i = 0; i < components.size(); ++i)
+                active_component[i] = component_parent[i] < 0;
+        }
+        for (std::size_t component = 0; component < components.size(); ++component)
+        {
+            if (!active_component[component]) continue;
+            active_triangles.insert(active_triangles.end(),
+                components[component].begin(), components[component].end());
+        }
+        std::sort(active_triangles.begin(), active_triangles.end());
+        pseudo_normals = build_pseudo_normals(mesh);
+        bvh_triangles = active_triangles;
         build_bvh(0, bvh_triangles.size());
     }
 
@@ -684,10 +971,30 @@ struct ExactSurface::Impl
     std::vector<detail::TrianglePseudoNormals> pseudo_normals;
     std::vector<std::uint32_t> bvh_triangles;
     std::vector<BvhNode> bvh;
+    CompositionPolicy composition{CompositionPolicy::SeparateAssets};
+    std::vector<std::vector<std::uint32_t>> components;
+    std::vector<std::int32_t> component_parent;
+    std::vector<bool> active_component;
+    std::vector<std::uint32_t> active_triangles;
+
+    bool inside_composed(Vec3 point) const
+    {
+        std::size_t containing = 0;
+        for (std::size_t i = 0; i < components.size(); ++i)
+        {
+            if (composition == CompositionPolicy::SolidUnion &&
+                !active_component[i])
+                continue;
+            containing += component_contains(mesh, components[i], point) ? 1u : 0u;
+        }
+        return composition == CompositionPolicy::NestedParity
+            ? (containing % 2u) != 0u
+            : containing != 0u;
+    }
 };
 
-ExactSurface::ExactSurface(SurfaceMesh mesh)
-    : impl_(std::make_shared<Impl>(std::move(mesh)))
+ExactSurface::ExactSurface(SurfaceMesh mesh, CompositionPolicy composition)
+    : impl_(std::make_shared<Impl>(std::move(mesh), composition))
 {
 }
 
@@ -706,12 +1013,43 @@ const Aabb& ExactSurface::bounds() const noexcept
     return impl_->bounds;
 }
 
+CompositionPolicy ExactSurface::composition() const noexcept
+{
+    return impl_->composition;
+}
+
+std::size_t ExactSurface::component_count() const noexcept
+{
+    return impl_->components.size();
+}
+
+std::size_t ExactSurface::active_component_count() const noexcept
+{
+    return static_cast<std::size_t>(std::count(
+        impl_->active_component.begin(), impl_->active_component.end(), true));
+}
+
+const std::vector<std::uint32_t>& ExactSurface::active_triangles() const noexcept
+{
+    return impl_->active_triangles;
+}
+
 QueryResult ExactSurface::query(Vec3 point) const
 {
     const std::uint32_t triangle = impl_->nearest_triangle(point);
-    return detail::exact_query_triangle(
+    QueryResult result = detail::exact_query_triangle(
         impl_->mesh, &impl_->pseudo_normals,
-        point, &triangle, 1, true);
+        point, &triangle, 1, false);
+    const bool inside = impl_->inside_composed(point);
+    const double unsigned_distance = std::abs(result.phi);
+    result.phi = inside ? -unsigned_distance : unsigned_distance;
+    if (unsigned_distance > kTiny)
+        result.raw_gradient = (inside ? -1.0 : 1.0) *
+            (point - result.witness) / unsigned_distance;
+    else if (inside)
+        result.raw_gradient = -1.0 * result.raw_gradient;
+    result.unit_normal = normalized(result.raw_gradient);
+    return result;
 }
 
 QueryResult ExactSurface::query_subset(
@@ -719,9 +1057,19 @@ QueryResult ExactSurface::query_subset(
     const std::uint32_t* triangle_indices,
     std::size_t count) const
 {
-    return detail::exact_query_triangle(
+    QueryResult result = detail::exact_query_triangle(
         impl_->mesh, &impl_->pseudo_normals,
-        point, triangle_indices, count, true);
+        point, triangle_indices, count, false);
+    const bool inside = impl_->inside_composed(point);
+    const double unsigned_distance = std::abs(result.phi);
+    result.phi = inside ? -unsigned_distance : unsigned_distance;
+    if (unsigned_distance > kTiny)
+        result.raw_gradient = (inside ? -1.0 : 1.0) *
+            (point - result.witness) / unsigned_distance;
+    else if (inside)
+        result.raw_gradient = -1.0 * result.raw_gradient;
+    result.unit_normal = normalized(result.raw_gradient);
+    return result;
 }
 
 const char* status_message(Status status) noexcept

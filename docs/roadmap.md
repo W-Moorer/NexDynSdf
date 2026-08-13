@@ -68,7 +68,7 @@ metadata, NSDF 1.1 serialization, a size-versioned C provenance query,
 The AABB/Lipschitz path remains the default reference until a future API policy
 change explicitly promotes another filter.
 
-## M2: explicit multi-component and cavity semantics
+## M2: explicit multi-component and cavity semantics (implemented)
 
 Do not infer the meaning of disconnected or nested shells silently. Extend the
 build API and asset metadata with an explicit composition policy, initially:
@@ -86,6 +86,12 @@ Acceptance requires analytic disjoint-sphere, nested-sphere, shell-with-cavity,
 and intersecting-shell fixtures, serialization round trips, C API metadata, and
 documented failure for ambiguous input. This milestone is the prerequisite for
 making `SlidewayRotatingModel.obj` runtime-ready as one composed asset.
+
+Implementation: explicit `CompositionPolicy`, a containment graph, shell
+intersection/touch rejection, union boundary elimination, parity sign/gradient,
+NSDF 1.2 metadata, C provenance fields, and analytic disjoint/nested/intersecting
+fixtures in `tests/unit_tests.cpp`. Catalog models are not automatically assigned
+a policy; their physical meaning still requires an explicit caller choice.
 
 ## M3: source-model repair and input-format decision
 

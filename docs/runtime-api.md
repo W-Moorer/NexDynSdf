@@ -56,6 +56,9 @@ uses `nexsdf_asset_get_provenance` and a size-versioned
 `sizeof(nexsdf_asset_provenance)`. `influence_filter` identifies AABB (0), GJK
 (1), or Frank-Wolfe (2); `candidate_index_count` is the total number of stored
 leaf indices and is useful for offline size/performance comparisons.
+`composition` identifies separate assets (0), solid union (1), or nested parity
+(2); component counts distinguish source shells from active distance
+boundaries.
 
 ## Batch behavior
 

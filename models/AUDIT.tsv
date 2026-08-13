@@ -17,7 +17,7 @@ pycoco/obj_model/complex_geometry/Gear.obj	obj	3443	6882	1	1	1	1	0	0	0	valid clo
 pycoco/obj_model/complex_geometry/LinkedGear.obj	obj	1657	3314	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 pycoco/obj_model/complex_geometry/Nail.obj	obj	3182	6360	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj	obj	3672	7356	1	1	1	1	0	0	0	valid closed oriented triangle mesh
-pycoco/obj_model/complex_geometry/SlidewayRotatingModel.obj	obj	15792	31596	1	0	0	2	0	0	0	mesh must contain exactly one connected surface component
+pycoco/obj_model/complex_geometry/SlidewayRotatingModel.obj	obj	15792	31596	1	0	0	2	0	0	0	multiple components require solid-union or nested-parity composition
 pycoco/obj_model/nonsmooth_geometry/Cone.obj	obj	164	324	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 pycoco/obj_model/nonsmooth_geometry/Cube.obj	obj	272	540	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 pycoco/obj_model/nonsmooth_geometry/Cylinder.obj	obj	212	420	1	1	1	1	0	0	0	valid closed oriented triangle mesh

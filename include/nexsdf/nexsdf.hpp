@@ -87,6 +87,13 @@ enum class InfluenceFilter : std::uint32_t
     PaperFrankWolfe = 2
 };
 
+enum class CompositionPolicy : std::uint32_t
+{
+    SeparateAssets = 0,
+    SolidUnion = 1,
+    NestedParity = 2
+};
+
 enum class Status : std::uint32_t
 {
     Ok = 0,
@@ -140,6 +147,7 @@ struct BuildOptions
     Representation representation{Representation::DenseGrid};
     Reconstruction reconstruction{Reconstruction::Trilinear};
     InfluenceFilter influence_filter{InfluenceFilter::AabbLipschitz};
+    CompositionPolicy composition{CompositionPolicy::SeparateAssets};
     std::array<std::uint32_t, 3> resolution{32, 32, 32};
     std::uint32_t maximum_depth{7};
     std::uint32_t start_depth{1};
@@ -153,10 +161,11 @@ struct BuildOptions
 struct AssetInfo
 {
     std::uint32_t format_major{1};
-    std::uint32_t format_minor{1};
+    std::uint32_t format_minor{2};
     Representation representation{Representation::DenseGrid};
     Reconstruction reconstruction{Reconstruction::Trilinear};
     InfluenceFilter influence_filter{InfluenceFilter::AabbLipschitz};
+    CompositionPolicy composition{CompositionPolicy::SeparateAssets};
     Aabb domain{};
     std::array<std::uint32_t, 3> resolution{};
     std::uint32_t maximum_depth{0};
@@ -166,6 +175,8 @@ struct AssetInfo
     std::uint64_t coefficient_count{0};
     std::uint64_t triangle_count{0};
     std::uint64_t candidate_index_count{0};
+    std::uint32_t component_count{1};
+    std::uint32_t active_component_count{1};
     bool has_measured_error{false};
 };
 
@@ -176,11 +187,17 @@ NEXSDF_API MeshValidation validate_mesh(const SurfaceMesh& mesh);
 class NEXSDF_API ExactSurface
 {
 public:
-    explicit ExactSurface(SurfaceMesh mesh);
+    explicit ExactSurface(
+        SurfaceMesh mesh,
+        CompositionPolicy composition = CompositionPolicy::SeparateAssets);
 
     const SurfaceMesh& mesh() const noexcept;
     const MeshValidation& validation() const noexcept;
     const Aabb& bounds() const noexcept;
+    CompositionPolicy composition() const noexcept;
+    std::size_t component_count() const noexcept;
+    std::size_t active_component_count() const noexcept;
+    const std::vector<std::uint32_t>& active_triangles() const noexcept;
     QueryResult query(Vec3 point) const;
     QueryResult query_subset(
         Vec3 point,

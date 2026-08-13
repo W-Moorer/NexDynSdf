@@ -21,6 +21,9 @@ int main(int argc, char** argv)
                   << "representation=" << static_cast<std::uint32_t>(info.representation) << '\n'
                   << "reconstruction=" << static_cast<std::uint32_t>(info.reconstruction) << '\n'
                   << "influence_filter=" << static_cast<std::uint32_t>(info.influence_filter) << '\n'
+                  << "composition=" << static_cast<std::uint32_t>(info.composition)
+                  << " components=" << info.component_count
+                  << " active_components=" << info.active_component_count << '\n'
                   << "domain_min=" << info.domain.minimum.x << ' ' << info.domain.minimum.y << ' ' << info.domain.minimum.z << '\n'
                   << "domain_max=" << info.domain.maximum.x << ' ' << info.domain.maximum.y << ' ' << info.domain.maximum.z << '\n'
                   << "nodes=" << info.node_count << " coefficients=" << info.coefficient_count

@@ -23,6 +23,8 @@ namespace
 
 int failures = 0;
 
+std::filesystem::path temporary_asset_path(const char* name);
+
 void check(bool condition, const std::string& message)
 {
     if (!condition)
@@ -58,6 +60,141 @@ nexsdf::SurfaceMesh cube_mesh(bool inward = false)
         mesh.triangles.push_back(triangle);
     }
     return mesh;
+}
+
+void append_cube(
+    nexsdf::SurfaceMesh& destination,
+    nexsdf::Vec3 center,
+    double half_extent,
+    bool inward = false)
+{
+    nexsdf::SurfaceMesh source = cube_mesh(inward);
+    const std::uint32_t vertex_offset =
+        static_cast<std::uint32_t>(destination.vertices.size());
+    const std::uint32_t face_offset =
+        static_cast<std::uint32_t>(destination.triangles.size());
+    for (nexsdf::Vec3 vertex : source.vertices)
+        destination.vertices.push_back(center + half_extent * vertex);
+    for (nexsdf::Triangle triangle : source.triangles)
+    {
+        for (std::uint32_t& vertex : triangle.vertex) vertex += vertex_offset;
+        triangle.face_id += face_offset;
+        destination.triangles.push_back(triangle);
+    }
+}
+
+void test_composition_policies()
+{
+    nexsdf::SurfaceMesh disjoint;
+    append_cube(disjoint, {-3.0, 0.0, 0.0}, 1.0);
+    append_cube(disjoint, {3.0, 0.0, 0.0}, 1.0, true);
+    bool separate_rejected = false;
+    try
+    {
+        const nexsdf::ExactSurface ignored(disjoint);
+        (void)ignored;
+    }
+    catch (const std::invalid_argument&)
+    {
+        separate_rejected = true;
+    }
+    check(separate_rejected,
+        "separate-assets policy rejects an ambiguous multi-component asset");
+
+    const nexsdf::ExactSurface disjoint_union(
+        disjoint, nexsdf::CompositionPolicy::SolidUnion);
+    near(disjoint_union.query({-3.0, 0.0, 0.0}).phi, -1.0, 1.0e-12,
+        "solid union is negative inside its first component");
+    near(disjoint_union.query({3.0, 0.0, 0.0}).phi, -1.0, 1.0e-12,
+        "solid union is negative inside its second component");
+    near(disjoint_union.query({0.0, 0.0, 0.0}).phi, 2.0, 1.0e-12,
+        "solid union is positive between disjoint components");
+    check(disjoint_union.component_count() == 2 &&
+          disjoint_union.active_component_count() == 2,
+        "disjoint solid union keeps both exterior boundaries");
+
+    nexsdf::SurfaceMesh nested;
+    append_cube(nested, {0.0, 0.0, 0.0}, 2.0);
+    append_cube(nested, {0.0, 0.0, 0.0}, 1.0, true);
+    const nexsdf::ExactSurface filled(
+        nested, nexsdf::CompositionPolicy::SolidUnion);
+    near(filled.query({0.0, 0.0, 0.0}).phi, -2.0, 1.0e-12,
+        "solid union removes an enclosed redundant boundary");
+    check(filled.active_component_count() == 1 &&
+          filled.active_triangles().size() == 12,
+        "solid union retains only the outer nested shell");
+
+    const nexsdf::ExactSurface cavity(
+        nested, nexsdf::CompositionPolicy::NestedParity);
+    near(cavity.query({0.0, 0.0, 0.0}).phi, 1.0, 1.0e-12,
+        "nested parity makes the inner shell a positive cavity");
+    near(cavity.query({1.5, 0.0, 0.0}).phi, -0.5, 1.0e-12,
+        "nested parity is negative in shell material");
+    near(cavity.query({2.5, 0.0, 0.0}).phi, 0.5, 1.0e-12,
+        "nested parity is positive outside the outer shell");
+    const nexsdf::QueryResult inner_side = cavity.query({0.9, 0.2, 0.1});
+    check(inner_side.phi > 0.0 && inner_side.raw_gradient.x < 0.0,
+        "cavity boundary gradient points from material into positive cavity");
+
+    nexsdf::SurfaceMesh intersecting;
+    append_cube(intersecting, {0.0, 0.0, 0.0}, 1.0);
+    append_cube(intersecting, {1.0, 0.0, 0.0}, 1.0);
+    bool intersection_rejected = false;
+    try
+    {
+        const nexsdf::ExactSurface ignored(
+            intersecting, nexsdf::CompositionPolicy::SolidUnion);
+        (void)ignored;
+    }
+    catch (const std::invalid_argument& error)
+    {
+        intersection_rejected =
+            std::string(error.what()).find("intersect or touch") != std::string::npos;
+    }
+    check(intersection_rejected,
+        "intersecting or touching shell components fail closed");
+
+    nexsdf::BuildOptions options;
+    options.representation = nexsdf::Representation::ExactInfluenceOctree;
+    options.reconstruction = nexsdf::Reconstruction::Exact;
+    options.composition = nexsdf::CompositionPolicy::NestedParity;
+    options.maximum_depth = 3;
+    options.start_depth = 1;
+    options.maximum_triangles_per_leaf = 4;
+    options.relative_padding = 0.25;
+    const nexsdf::Asset source = nexsdf::build(nested, options);
+    const std::filesystem::path path = temporary_asset_path(
+        "nexsdf-composition-roundtrip.nsdf");
+    source.save(path.string());
+    const nexsdf::Asset loaded = nexsdf::Asset::load(path.string());
+    check(loaded.info().composition == nexsdf::CompositionPolicy::NestedParity &&
+          loaded.info().component_count == 2 &&
+          loaded.info().active_component_count == 2,
+        "NSDF round trip preserves composition metadata");
+    nexsdf_asset* handle = nullptr;
+    check(nexsdf_asset_open(path.string().c_str(), &handle) == NEXSDF_STATUS_OK,
+        "C API opens a composed NSDF asset");
+    nexsdf_asset_provenance provenance{};
+    provenance.struct_size = sizeof(provenance);
+    check(nexsdf_asset_get_provenance(handle, &provenance) == NEXSDF_STATUS_OK &&
+          provenance.composition == 2 && provenance.component_count == 2 &&
+          provenance.active_component_count == 2,
+        "C API exposes composition and component metadata");
+    nexsdf_asset_close(handle);
+    for (const nexsdf::Vec3 point : {
+             nexsdf::Vec3{0.0, 0.0, 0.0},
+             nexsdf::Vec3{1.5, 0.2, 0.1},
+             nexsdf::Vec3{2.2, 0.1, 0.2}})
+    {
+        const nexsdf::QueryResult before = source.query(point);
+        const nexsdf::QueryResult after = loaded.query(point);
+        check(before.phi == after.phi &&
+              before.branch_signature == after.branch_signature &&
+              nexsdf::norm(before.raw_gradient - after.raw_gradient) == 0.0,
+            "composed exact NSDF query survives round trip bit-for-bit");
+    }
+    std::error_code error;
+    std::filesystem::remove(path, error);
 }
 
 void test_mesh_and_exact_query()
@@ -486,6 +623,7 @@ int main()
     try
     {
         test_mesh_and_exact_query();
+        test_composition_policies();
         test_dense_reconstructions();
         test_dense_continuity();
         test_exact_octree();

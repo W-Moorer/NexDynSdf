@@ -100,6 +100,12 @@ void validate_options(const BuildOptions& options)
     {
         throw std::invalid_argument("unknown exact influence filter");
     }
+    if (options.composition != CompositionPolicy::SeparateAssets &&
+        options.composition != CompositionPolicy::SolidUnion &&
+        options.composition != CompositionPolicy::NestedParity)
+    {
+        throw std::invalid_argument("unknown composition policy");
+    }
     if (options.representation != Representation::ExactInfluenceOctree &&
         options.influence_filter != InfluenceFilter::AabbLipschitz)
     {
@@ -354,8 +360,7 @@ void build_exact_octree(detail::AssetData& data, const BuildOptions& options)
     detail::Node root;
     root.box = data.info.domain;
     data.nodes.push_back(root);
-    std::vector<std::uint32_t> triangles(data.mesh.triangles.size());
-    std::iota(triangles.begin(), triangles.end(), 0u);
+    std::vector<std::uint32_t> triangles = data.exact_surface->active_triangles();
     build_exact_node(data, options, 0, std::move(triangles));
     data.info.node_count = data.nodes.size();
     data.info.coefficient_count = 0;
@@ -758,11 +763,16 @@ std::shared_ptr<const AssetData> build_asset_data(
 {
     validate_options(options);
     auto data = std::make_shared<AssetData>();
-    data->exact_surface = std::make_shared<ExactSurface>(mesh);
+    data->exact_surface = std::make_shared<ExactSurface>(mesh, options.composition);
     data->mesh = data->exact_surface->mesh();
     data->info.representation = options.representation;
     data->info.reconstruction = options.reconstruction;
     data->info.influence_filter = options.influence_filter;
+    data->info.composition = options.composition;
+    data->info.component_count = static_cast<std::uint32_t>(
+        data->exact_surface->component_count());
+    data->info.active_component_count = static_cast<std::uint32_t>(
+        data->exact_surface->active_component_count());
     data->info.domain = padded_bounds(data->mesh, options);
     data->info.maximum_depth = options.maximum_depth;
     data->info.requested_error_tolerance =
@@ -1045,6 +1055,18 @@ void validate_loaded_layout(const AssetData& data)
     {
         throw std::runtime_error("NSDF influence-filter metadata is invalid");
     }
+    if (data.info.composition != CompositionPolicy::SeparateAssets &&
+        data.info.composition != CompositionPolicy::SolidUnion &&
+        data.info.composition != CompositionPolicy::NestedParity)
+    {
+        throw std::runtime_error("NSDF composition metadata is invalid");
+    }
+    if (data.info.component_count == 0 ||
+        data.info.active_component_count == 0 ||
+        data.info.active_component_count > data.info.component_count)
+    {
+        throw std::runtime_error("NSDF component metadata is invalid");
+    }
     if (data.info.representation != Representation::ExactInfluenceOctree &&
         data.info.influence_filter != InfluenceFilter::AabbLipschitz)
     {
@@ -1140,6 +1162,12 @@ void save_asset(const AssetData& data, const std::string& path)
     writer.u32(static_cast<std::uint32_t>(data.info.reconstruction));
     if (data.info.format_minor >= 1)
         writer.u32(static_cast<std::uint32_t>(data.info.influence_filter));
+    if (data.info.format_minor >= 2)
+    {
+        writer.u32(static_cast<std::uint32_t>(data.info.composition));
+        writer.u32(data.info.component_count);
+        writer.u32(data.info.active_component_count);
+    }
     writer.box(data.info.domain);
     for (const std::uint32_t value : data.info.resolution) writer.u32(value);
     writer.u32(data.info.maximum_depth);
@@ -1241,7 +1269,7 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     auto data = std::make_shared<AssetData>();
     data->info.format_major = reader.u32("format major");
     data->info.format_minor = reader.u32("format minor");
-    if (data->info.format_major != 1 || data->info.format_minor > 1)
+    if (data->info.format_major != 1 || data->info.format_minor > 2)
     {
         throw std::runtime_error("unsupported NSDF major version");
     }
@@ -1250,6 +1278,13 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     if (data->info.format_minor >= 1)
         data->info.influence_filter = static_cast<InfluenceFilter>(
             reader.u32("influence filter"));
+    if (data->info.format_minor >= 2)
+    {
+        data->info.composition = static_cast<CompositionPolicy>(
+            reader.u32("composition policy"));
+        data->info.component_count = reader.u32("component count");
+        data->info.active_component_count = reader.u32("active component count");
+    }
     data->info.domain = reader.box("domain");
     for (std::uint32_t& value : data->info.resolution) value = reader.u32("resolution");
     data->info.maximum_depth = reader.u32("maximum depth");
@@ -1353,7 +1388,8 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     validate_loaded_layout(*data);
     if (!data->mesh.triangles.empty())
     {
-        data->exact_surface = std::make_shared<ExactSurface>(data->mesh);
+        data->exact_surface = std::make_shared<ExactSurface>(
+            data->mesh, data->info.composition);
         data->mesh = data->exact_surface->mesh();
     }
     return data;

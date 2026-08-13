@@ -171,6 +171,9 @@ nexsdf_status nexsdf_asset_get_provenance(
     out_provenance->influence_filter =
         static_cast<std::uint32_t>(source.influence_filter);
     out_provenance->candidate_index_count = source.candidate_index_count;
+    out_provenance->composition = static_cast<std::uint32_t>(source.composition);
+    out_provenance->component_count = source.component_count;
+    out_provenance->active_component_count = source.active_component_count;
     last_error.clear();
     return NEXSDF_STATUS_OK;
 }

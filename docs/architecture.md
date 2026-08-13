@@ -49,8 +49,8 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
 - OBJ material and texture payloads are ignored after index validation.
 - The exact influence filter is conservative but weaker than SdfLib's GJK
   influence-region test.
-- Multiple disconnected or nested shells in one mesh are rejected. They must
-  be baked as separate assets until an explicit union/cavity sign policy exists.
+- Multiple shells require an explicit solid-union or nested-parity build policy;
+  intersecting/touching shells are rejected as ambiguous.
 - Gradient Taylor is intentionally discontinuous across cell boundaries.
 - The builder is single-threaded and CPU-only. Internal exact sampling uses a
   BVH, but no SIMD/GPU/parallel generation path is implemented.

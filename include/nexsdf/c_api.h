@@ -47,6 +47,9 @@ typedef struct nexsdf_asset_provenance
     uint32_t struct_size;
     uint32_t influence_filter;
     uint64_t candidate_index_count;
+    uint32_t composition;
+    uint32_t component_count;
+    uint32_t active_component_count;
 } nexsdf_asset_provenance;
 
 typedef struct nexsdf_query_result

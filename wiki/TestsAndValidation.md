@@ -5,7 +5,8 @@
 - `unit`: exact geometry, all reconstructions, both octrees, coarse/fine
   continuity, `.nsdf` round trips/corruption, and pure C ABI.
 - `regression`: core SDF generation fixtures plus a complete 34-asset catalog
-  integrity audit (32 OBJ/NSM parser inputs, 29 runtime-ready assets), and the
+  integrity audit (32 OBJ/NSM parser inputs, 29 default-policy runtime-ready
+  assets), and the
   deterministic quantitative-validation schema smoke test. The Gear influence
   regression also requires AABB, GJK, and Frank-Wolfe leaves to equal an
   exhaustive scan at 257 deterministic points.

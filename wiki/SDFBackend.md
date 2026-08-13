@@ -61,16 +61,16 @@ points and checks serialization.
 - Adaptive termination uses the reference 19-point trapezoidal RMS estimate;
   the reported probe maximum is not a certified whole-cell error bound.
 - Generation is single-threaded CPU code.
-- One asset accepts exactly one connected closed surface component; multi-shell
-  union/cavity semantics are not inferred.
+- Multi-shell assets require explicit union or nested-parity semantics;
+  intersecting/touching shells are rejected.
 - Gradient Taylor is discontinuous at cell boundaries.
 - Contact search, pair selection, manifold construction, and solver coupling
   remain NexDyn responsibilities and are not implemented here.
 
 ## Planned work
 
-M0 quantitative validation and M1 paper-faithful GJK/Frank-Wolfe filtering are
-implemented. Remaining multi-shell/cavity, NSM/STL/ENG, CPU parallel/SIMD, and
+M0 quantitative validation, M1 paper-faithful GJK/Frank-Wolfe filtering, and M2
+explicit multi-shell/cavity composition are implemented. Remaining NSM/STL/ENG, CPU parallel/SIMD, and
 optional GPU work is maintained in `docs/roadmap.md`.
 
 ## Last verified against

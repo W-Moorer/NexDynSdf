@@ -71,12 +71,29 @@ absolute error observed at the 19 probe points of the selected leaf. It is not
 a mathematically certified error bound over every point in the leaf. Dense and
 exact assets set `has_measured_error=false`.
 
+## Multi-component composition
+
+`SeparateAssets` preserves the original single-component contract and rejects
+multi-component input. `SolidUnion` accepts disjoint closed components and
+removes every shell contained by another component from the admissible nearest
+boundary set; the sign is negative inside any active outer component.
+`NestedParity` retains every shell, counts component containments, and is
+negative at odd depth. Its gradient is recomputed from the witness and final
+global sign, so an inner cavity normal points from material into the positive
+cavity independently of imported winding.
+
+Construction builds a component containment graph after per-component outward
+orientation. Component pairs are first AABB-pruned and then tested by
+triangle-triangle separating axes, including coplanar in-plane axes. Surface
+intersection or touching, cyclic containment, and a representative point whose
+two normal offsets disagree all fail closed as ambiguous. The tolerances are
+derived from machine epsilon and the mesh bounding-box scale.
+
 ## Known numerical boundaries
 
 - A signed field requires a finite, non-degenerate, closed, consistently
-  oriented, single-component two-manifold after exact duplicate-coordinate
-  welding. Multiple shells are rejected because their union/cavity semantics
-  cannot be inferred from local pseudo-normal sign alone.
+  oriented two-manifold after exact duplicate-coordinate welding. Multiple
+  shells require an explicit `SolidUnion` or `NestedParity` policy.
 - The signed distance is non-differentiable on medial axes and at feature
   branch changes. `feature` and `branch_signature` expose these cases.
 - Gradient Taylor is piecewise first order and is not continuous across cell

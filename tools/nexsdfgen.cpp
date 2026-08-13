@@ -20,7 +20,8 @@ void usage()
               << "  --resolution N  --max-depth N  --start-depth N\n"
               << "  --max-triangles N  --tolerance X  --padding X\n"
               << "  --absolute-padding X  --derivative-step X\n"
-              << "  --influence aabb|gjk|frank-wolfe\n";
+              << "  --influence aabb|gjk|frank-wolfe\n"
+              << "  --composition separate|union|parity\n";
 }
 
 std::string lower(std::string value)
@@ -53,6 +54,14 @@ nexsdf::InfluenceFilter influence_filter(const std::string& value)
     if (value == "gjk") return nexsdf::InfluenceFilter::PaperGjk;
     if (value == "frank-wolfe") return nexsdf::InfluenceFilter::PaperFrankWolfe;
     throw std::invalid_argument("unknown influence filter: " + value);
+}
+
+nexsdf::CompositionPolicy composition_policy(const std::string& value)
+{
+    if (value == "separate") return nexsdf::CompositionPolicy::SeparateAssets;
+    if (value == "union") return nexsdf::CompositionPolicy::SolidUnion;
+    if (value == "parity") return nexsdf::CompositionPolicy::NestedParity;
+    throw std::invalid_argument("unknown composition policy: " + value);
 }
 
 std::string next(int& index, int count, char** values, const char* option)
@@ -110,6 +119,7 @@ int main(int argc, char** argv)
             else if (option == "--absolute-padding") options.absolute_padding = std::stod(next(i, argc, argv, option.c_str()));
             else if (option == "--derivative-step") options.derivative_step = std::stod(next(i, argc, argv, option.c_str()));
             else if (option == "--influence") options.influence_filter = influence_filter(next(i, argc, argv, option.c_str()));
+            else if (option == "--composition") options.composition = composition_policy(next(i, argc, argv, option.c_str()));
             else if (option == "--help") { usage(); return 0; }
             else throw std::invalid_argument("unknown option: " + option);
         }

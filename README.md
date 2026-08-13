@@ -63,6 +63,8 @@ the 32/64/128/256 matrix command.
 
 The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
 files containing per-triangle face identifiers and per-corner normals.
+Disconnected shells may be built only with an explicit solid-union or
+nested-parity policy; intersecting or touching shells fail closed.
 
 ## Algorithm references
 
@@ -117,7 +119,8 @@ All example and validation models are consolidated under [`models/`](models/):
 
 The catalog currently contains 34 assets: 32 OBJ/NSM parser inputs and two
 auxiliary source/cache files. All 32 OBJ/NSM files parse successfully; 29 pass
-the current strict single-component signed-distance topology policy. See
+the default `SeparateAssets` signed-distance policy. Multi-component models can
+be built only after the caller explicitly selects union or parity. See
 [`models/MANIFEST.md`](models/MANIFEST.md), the machine-readable
 [`models/CATALOG.tsv`](models/CATALOG.tsv), and the current
 [`models/AUDIT.tsv`](models/AUDIT.tsv). The only model-specific third-party
