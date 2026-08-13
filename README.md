@@ -54,6 +54,13 @@ Implemented representations and reconstructions:
 - tricubic Hermite scalar reconstruction;
 - PyCoCo-compatible cell-centred gradient Taylor reconstruction.
 
+Offline CPU generation supports a scalar reference backend or fixed-partition
+parallel sampling/filtering via `--backend parallel --threads N`. Dense
+trilinear batch queries have a selectable SIMD path. An optional CUDA build
+(`-DNEXSDF_ENABLE_CUDA=ON`) provides experimental double-precision dense
+trilinear generation and query without changing the stable C ABI or default
+CPU-only dependency set.
+
 Quantitative comparison is provided by `nexsdfvalidate`. Its versioned TSV
 schema includes distance, gradient, normal, Eikonal, bidirectional sampled
 surface error, serialized size, peak process memory, and warmed build/query
@@ -160,7 +167,8 @@ scripts/run_validation_matrix.ps1 -Profile Smoke -Configuration Release
 
 ```powershell
 build/Release/nexsdfgen.exe models/pycoco/obj_library/cube.obj out/cube.nsdf `
-  --representation grid --reconstruction trilinear --resolution 48
+  --representation grid --reconstruction trilinear --resolution 48 `
+  --backend parallel --threads 8
 build/Release/nexsdfinspect.exe out/cube.nsdf 2 0 0
 ```
 
@@ -187,6 +195,10 @@ build/Release/nexsdfmodelaudit.exe models --expect-files 33 --expect-ready 32
 python scripts/regenerate_reference_models.py --output-dir models/sdfmodel --check
 scripts/update_model_catalog.ps1  # verifies source hashes and rewrites CATALOG.tsv
 scripts/update_model_audit.ps1    # rewrites AUDIT.tsv through production loaders
+scripts/run_backend_comparison.ps1 -Threads 8
+
+# Optional CUDA experiment; CPU validation/serialization remains authoritative.
+scripts/run_backend_comparison.ps1 -Cuda
 ```
 
 Valid representation/reconstruction pairs are:

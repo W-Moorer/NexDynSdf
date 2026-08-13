@@ -45,12 +45,13 @@ struct Options
     std::size_t query_repetitions{10};
     std::uint64_t seed{0x4e65785364664d30ULL};
     bool append{false};
+    nexsdf::BatchQueryOptions query{};
 };
 
 void usage()
 {
     std::cerr
-        << "usage: nexsdfvalidate INPUT.(obj|nsm) OUTPUT.tsv [options]\n"
+        << "usage: nexsdfvalidate INPUT.(obj|nsm|stl) OUTPUT.tsv [options]\n"
         << "  --representation grid|exact-octree|adaptive-octree\n"
         << "  --reconstruction trilinear|tricubic|gradient|exact\n"
         << "  --resolution N  --max-depth N  --start-depth N\n"
@@ -59,6 +60,8 @@ void usage()
         << "  --query-repetitions N  --seed N\n"
         << "  --influence aabb|gjk|frank-wolfe\n"
         << "  --composition separate|union|parity\n"
+        << "  --build-backend scalar|parallel|cuda  --threads N\n"
+        << "  --query-backend scalar|simd|cuda  --query-threads N\n"
         << "  --append  append a result row to an existing matching TSV\n";
 }
 
@@ -123,6 +126,36 @@ nexsdf::CompositionPolicy parse_composition(const std::string& value)
     if (value == "union") return nexsdf::CompositionPolicy::SolidUnion;
     if (value == "parity") return nexsdf::CompositionPolicy::NestedParity;
     throw std::invalid_argument("unknown composition policy: " + value);
+}
+
+nexsdf::ComputeBackend parse_compute_backend(const std::string& value)
+{
+    if (value == "scalar") return nexsdf::ComputeBackend::CpuScalar;
+    if (value == "parallel") return nexsdf::ComputeBackend::CpuParallel;
+    if (value == "cuda") return nexsdf::ComputeBackend::CudaExperimental;
+    throw std::invalid_argument("unknown build backend: " + value);
+}
+
+nexsdf::BatchBackend parse_batch_backend(const std::string& value)
+{
+    if (value == "scalar") return nexsdf::BatchBackend::Scalar;
+    if (value == "simd") return nexsdf::BatchBackend::AutoSimd;
+    if (value == "cuda") return nexsdf::BatchBackend::CudaExperimental;
+    throw std::invalid_argument("unknown query backend: " + value);
+}
+
+const char* compute_backend_name(nexsdf::ComputeBackend value)
+{
+    if (value == nexsdf::ComputeBackend::CpuScalar) return "cpu-scalar";
+    if (value == nexsdf::ComputeBackend::CpuParallel) return "cpu-parallel";
+    return "cuda-experimental";
+}
+
+const char* query_backend_name(nexsdf::BatchBackend value)
+{
+    if (value == nexsdf::BatchBackend::Scalar) return "scalar";
+    if (value == nexsdf::BatchBackend::AutoSimd) return "auto-simd";
+    return "cuda-experimental";
 }
 
 const char* composition_name(nexsdf::CompositionPolicy value)
@@ -330,14 +363,19 @@ std::string hex_u64(std::uint64_t value)
     return stream.str();
 }
 
-void write_header(std::ostream& stream)
+std::string validation_header()
 {
+    std::ostringstream stream;
     stream
         << "schema\tmodel\tmodel_hash_fnv1a64\trepresentation\treconstruction"
         << "\tresolution_x\tresolution_y\tresolution_z\tfield_samples\tsurface_samples"
         << "\tseed\tcompiler\tconfiguration\tbuild_backend\tworker_threads"
+        << "\tquery_backend\tquery_worker_threads"
         << "\tinfluence_filter\tcandidate_index_count\tcomposition"
         << "\tcomponent_count\tactive_component_count"
+        << "\tmaximum_depth\tstart_depth\tmaximum_triangles_per_leaf"
+        << "\trequested_error_tolerance\trelative_padding\tabsolute_padding"
+        << "\tderivative_step"
         << "\tbuild_seconds\tquery_seconds\tqueries_per_second\tasset_bytes"
         << "\tprocess_peak_working_set_bytes"
         << "\tdistance_rms\tdistance_p95\tdistance_max"
@@ -346,7 +384,8 @@ void write_header(std::ostream& stream)
         << "\teikonal_rms\teikonal_p95\teikonal_max"
         << "\tmesh_to_field_rms\tmesh_to_field_p95\tmesh_to_field_max"
         << "\tfield_to_mesh_rms\tfield_to_mesh_p95\tfield_to_mesh_max"
-        << "\tsymmetric_surface_max\n";
+        << "\tsymmetric_surface_max";
+    return stream.str();
 }
 
 } // namespace
@@ -390,6 +429,10 @@ int main(int argc, char** argv)
             else if (option == "--seed") options.seed = std::stoull(next(i, argc, argv, option.c_str()), nullptr, 0);
             else if (option == "--influence") options.build.influence_filter = parse_influence_filter(next(i, argc, argv, option.c_str()));
             else if (option == "--composition") options.build.composition = parse_composition(next(i, argc, argv, option.c_str()));
+            else if (option == "--build-backend") options.build.backend = parse_compute_backend(next(i, argc, argv, option.c_str()));
+            else if (option == "--threads") options.build.worker_threads = u32(next(i, argc, argv, option.c_str()), option.c_str());
+            else if (option == "--query-backend") options.query.backend = parse_batch_backend(next(i, argc, argv, option.c_str()));
+            else if (option == "--query-threads") options.query.worker_threads = u32(next(i, argc, argv, option.c_str()), option.c_str());
             else if (option == "--append") options.append = true;
             else if (option == "--help") { usage(); return 0; }
             else throw std::invalid_argument("unknown option: " + option);
@@ -413,8 +456,8 @@ int main(int argc, char** argv)
         const auto points = domain_points(asset.info().domain, options.field_samples, options.seed);
         std::vector<nexsdf::QueryResult> approximate(points.size());
         std::vector<nexsdf::QueryResult> reference(points.size());
-        asset.query_batch(points.data(), points.size(), approximate.data());
-        for (std::size_t i = 0; i < points.size(); ++i) reference[i] = exact.query(points[i]);
+        asset.query_batch(points.data(), points.size(), approximate.data(), options.query);
+        exact.query_batch(points.data(), points.size(), reference.data());
 
         std::vector<double> distance_errors;
         std::vector<double> gradient_errors;
@@ -474,10 +517,10 @@ int main(int argc, char** argv)
         if (field_to_mesh.empty()) throw std::runtime_error("all field-to-mesh projections failed");
 
         for (std::size_t warmup = 0; warmup < 2; ++warmup)
-            asset.query_batch(points.data(), points.size(), approximate.data());
+            asset.query_batch(points.data(), points.size(), approximate.data(), options.query);
         const auto query_start = Clock::now();
         for (std::size_t repeat = 0; repeat < options.query_repetitions; ++repeat)
-            asset.query_batch(points.data(), points.size(), approximate.data());
+            asset.query_batch(points.data(), points.size(), approximate.data(), options.query);
         const auto query_end = Clock::now();
         const double query_seconds = std::chrono::duration<double>(query_end - query_start).count();
         const double total_queries = static_cast<double>(points.size() * options.query_repetitions);
@@ -494,11 +537,21 @@ int main(int argc, char** argv)
             std::filesystem::create_directories(destination.parent_path());
         const bool write_existing = options.append && std::filesystem::exists(destination) &&
             std::filesystem::file_size(destination) != 0;
+        const std::string expected_header = validation_header();
+        if (write_existing)
+        {
+            std::ifstream existing(output_path);
+            std::string actual_header;
+            std::getline(existing, actual_header);
+            if (!existing || actual_header != expected_header)
+                throw std::runtime_error(
+                    "cannot append to a validation TSV with a different schema");
+        }
         std::ofstream output(output_path, write_existing ? std::ios::app : std::ios::trunc);
         if (!output) throw std::runtime_error("cannot open validation output: " + output_path);
-        if (!write_existing) write_header(output);
+        if (!write_existing) output << expected_header << '\n';
         output << std::setprecision(17)
-            << "nexsdf-validation-v1\t" << std::filesystem::path(input_path).generic_string()
+            << "nexsdf-validation-v3\t" << std::filesystem::path(input_path).generic_string()
             << '\t' << hex_u64(fnv1a64(input_path))
             << '\t' << representation_name(options.build.representation)
             << '\t' << reconstruction_name(options.build.reconstruction)
@@ -510,12 +563,22 @@ int main(int argc, char** argv)
             << '\t' << options.seed
             << '\t' << compiler_name()
             << '\t' << build_configuration()
-            << "\tscalar\t1"
+            << '\t' << compute_backend_name(options.build.backend)
+            << '\t' << options.build.worker_threads
+            << '\t' << query_backend_name(options.query.backend)
+            << '\t' << options.query.worker_threads
             << '\t' << influence_filter_name(asset.info().influence_filter)
             << '\t' << asset.info().candidate_index_count
             << '\t' << composition_name(asset.info().composition)
             << '\t' << asset.info().component_count
             << '\t' << asset.info().active_component_count
+            << '\t' << options.build.maximum_depth
+            << '\t' << options.build.start_depth
+            << '\t' << options.build.maximum_triangles_per_leaf
+            << '\t' << options.build.error_tolerance
+            << '\t' << options.build.relative_padding
+            << '\t' << options.build.absolute_padding
+            << '\t' << options.build.derivative_step
             << '\t' << build_seconds
             << '\t' << query_seconds
             << '\t' << (total_queries / query_seconds)

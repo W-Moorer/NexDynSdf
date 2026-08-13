@@ -11,8 +11,9 @@ The v1 writer stores:
 
 1. eight-byte magic `N X S D F 00 0D 0A` and format major/minor;
 2. representation and reconstruction identifiers, followed in minor version 1
-   by the exact influence-filter identifier and in minor version 2 by
-   composition/component metadata;
+   by the exact influence-filter identifier, in minor version 2 by
+   composition/component metadata, and in minor version 3 by offline build
+   backend/worker provenance;
 3. domain, resolution/depth, and error metadata;
 4. logical and stored node/triangle/coefficient counts;
 5. optional exact mesh vertices and triangles, including face IDs and corner
@@ -35,12 +36,13 @@ acyclic topology, child depth, and representation-specific payload layout.
 
 ## Compatibility policy
 
-The current format is 1.2. The loader remains compatible with 1.0/1.1 assets and
+The current format is 1.3. The loader remains compatible with 1.0/1.1/1.2 assets and
 interprets their missing filter field as `AabbLipschitz`. Unknown major versions
 and unknown newer minor versions are rejected, so the count table is never
 parsed at the wrong byte offsets. Assets should be reproducibly regenerated
 from source meshes when the major version changes. Pre-1.2 assets default to
-`SeparateAssets` with one active component.
+`SeparateAssets` with one active component; pre-1.3 assets default to the
+single-worker scalar CPU build provenance.
 
 ## Last verified against
 

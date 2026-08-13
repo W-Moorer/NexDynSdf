@@ -61,7 +61,8 @@ points and checks serialization.
 
 - Adaptive termination uses the reference 19-point trapezoidal RMS estimate;
   the reported probe maximum is not a certified whole-cell error bound.
-- Generation is single-threaded CPU code.
+- CPU generation supports scalar and deterministic fixed-partition parallel
+  execution; CUDA dense-trilinear generation/query is optional and experimental.
 - Multi-shell assets require explicit union or nested-parity semantics;
   intersecting/touching shells are rejected.
 - Gradient Taylor is discontinuous at cell boundaries.
@@ -72,21 +73,25 @@ points and checks serialization.
 
 M0 quantitative validation, M1 paper-faithful GJK/Frank-Wolfe filtering, M2
 explicit multi-shell/cavity composition, and M3 source-model/input-format work
-are implemented. CPU parallel/SIMD and optional GPU work remains in
-`docs/roadmap.md`.
+are implemented. M4 fixed-partition CPU/SIMD and the opt-in M5 CUDA
+dense-trilinear experiment are also implemented; their scope and remaining
+full-matrix evaluation are recorded in `docs/roadmap.md`.
 
 ## Last verified against
 
 Date: 2026-08-13.
 
 Sources: `src/geometry.cpp`, `src/influence.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-`src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
+`src/mesh_io.cpp`, `src/simd.cpp`, `src/cuda_backend.cu`,
+`src/cuda_stub.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
 `tools/nexsdfmodelaudit.cpp`, `scripts/generate_readme_images.ps1`,
 `scripts/update_model_catalog.ps1`, `scripts/update_model_audit.ps1`,
 `scripts/regenerate_reference_models.py`,
+`scripts/run_backend_comparison.ps1`,
 `models/MANIFEST.md`, `docs/roadmap.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`, `tests/influence_tests.cpp`,
+`tests/cuda_tests.cpp`,
 `tests/model_tests.cpp`, `tests/model_catalog_smoke.cmake`,
 `tests/visualization_smoke.cmake`, `tests/install_consumer/main.c`.
 

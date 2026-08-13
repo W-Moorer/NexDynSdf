@@ -24,6 +24,8 @@ int main(int argc, char** argv)
                   << "composition=" << static_cast<std::uint32_t>(info.composition)
                   << " components=" << info.component_count
                   << " active_components=" << info.active_component_count << '\n'
+                  << "build_backend=" << static_cast<std::uint32_t>(info.build_backend)
+                  << " worker_threads=" << info.worker_threads << '\n'
                   << "domain_min=" << info.domain.minimum.x << ' ' << info.domain.minimum.y << ' ' << info.domain.minimum.z << '\n'
                   << "domain_max=" << info.domain.maximum.x << ' ' << info.domain.maximum.y << ' ' << info.domain.maximum.z << '\n'
                   << "nodes=" << info.node_count << " coefficients=" << info.coefficient_count

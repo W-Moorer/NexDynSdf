@@ -38,6 +38,31 @@ identifier, closest feature, and a deterministic branch signature are retained.
 Representation and reconstruction are separate configuration axes. Exact
 influence octrees do not use interpolation.
 
+## Execution backends
+
+`CpuScalar` is the offline reference backend. `CpuParallel` divides dense-grid
+samples, adaptive error probes, and upper exact-octree child filters into fixed
+contiguous partitions. Workers own disjoint output slots; topology and child
+arrays are merged in their original serial order after all workers join. This
+keeps floating-point evaluation order local to each sample and makes repeated
+one-thread/multi-thread assets numerically identical apart from recorded
+backend provenance.
+
+`AutoSimd` batch queries use SSE2 two-lane interpolation for dense trilinear
+assets and paired AABB pruning for exact-surface BVH queries. Exact feature
+ties are confirmed through the scalar ordering, so the returned face, witness,
+feature, and branch signature remain deterministic. Disabling
+`NEXSDF_ENABLE_SIMD` makes `AutoSimd` fall back to the scalar batch path.
+The public batch default is scalar; `AutoSimd` must be selected explicitly.
+
+The optional `CudaExperimental` backend uses double-precision brute-force
+triangle sampling plus winding-number sign for single-shell dense trilinear
+generation, and a CUDA reconstruction kernel for compatible batch queries.
+CPU topology validation, domain construction, branch provenance, and `.nsdf`
+serialization remain authoritative. Each query currently includes device
+allocation and host/device transfer; this is an experimental conformance path,
+not an assertion that small batches are faster on a GPU.
+
 ## Exact triangle influence filters
 
 The reference `AabbLipschitz` filter compares each triangle AABB lower bound
@@ -82,6 +107,12 @@ negative at odd depth. Its gradient is recomputed from the witness and final
 global sign, so an inner cavity normal points from material into the positive
 cavity independently of imported winding.
 
+The single-shell `SeparateAssets` path derives sign directly from the closest
+feature's face, edge, or vertex pseudo-normal. Global solid-angle containment
+is reserved for explicit multi-shell composition, where a local closest-feature
+sign cannot express union or cavity semantics. Thus ordinary exact queries keep
+BVH query complexity without weakening the multi-shell sign rule.
+
 Construction builds a component containment graph after per-component outward
 orientation. Component pairs are first AABB-pruned and then tested by
 triangle-triangle separating axes, including coplanar in-plane axes. Surface
@@ -98,3 +129,5 @@ derived from machine epsilon and the mesh bounding-box scale.
   branch changes. `feature` and `branch_signature` expose these cases.
 - Gradient Taylor is piecewise first order and is not continuous across cell
   boundaries.
+- The CUDA generator is deliberately limited to dense trilinear,
+  single-component assets and scales as grid samples times triangle count.

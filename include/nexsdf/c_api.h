@@ -50,6 +50,8 @@ typedef struct nexsdf_asset_provenance
     uint32_t composition;
     uint32_t component_count;
     uint32_t active_component_count;
+    uint32_t build_backend;
+    uint32_t worker_threads;
 } nexsdf_asset_provenance;
 
 typedef struct nexsdf_query_result

@@ -9,6 +9,11 @@
 #include <stdexcept>
 #include <tuple>
 
+#if defined(NEXSDF_ENABLE_SIMD) && (defined(_M_X64) || defined(__SSE2__))
+#include <immintrin.h>
+#define NEXSDF_GEOMETRY_SSE2 1
+#endif
+
 namespace nexsdf
 {
 namespace
@@ -965,6 +970,119 @@ struct ExactSurface::Impl
         return best_triangle;
     }
 
+    std::array<std::uint32_t, 2> nearest_triangle_pair(
+        Vec3 first_point,
+        Vec3 second_point) const
+    {
+        const std::array<Vec3, 2> points{first_point, second_point};
+        std::array<double, 2> best_squared{
+            std::numeric_limits<double>::infinity(),
+            std::numeric_limits<double>::infinity()};
+        std::array<std::uint32_t, 2> best_triangle{0, 0};
+        constexpr std::size_t stack_capacity =
+            std::numeric_limits<std::size_t>::digits + 1;
+        std::array<std::array<std::uint32_t, stack_capacity>, 2> stacks{};
+        std::array<std::size_t, 2> stack_sizes{1, 1};
+        while (stack_sizes[0] != 0 || stack_sizes[1] != 0)
+        {
+            std::array<std::uint32_t, 2> nodes{};
+            std::array<bool, 2> active{};
+            for (std::size_t lane = 0; lane < 2; ++lane)
+            {
+                active[lane] = stack_sizes[lane] != 0;
+                if (active[lane])
+                {
+                    nodes[lane] = stacks[lane][--stack_sizes[lane]];
+                }
+            }
+            std::array<double, 2> lower_squared{};
+#if defined(NEXSDF_GEOMETRY_SSE2)
+            __m128d squared = _mm_setzero_pd();
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                const __m128d point = _mm_set_pd(points[1][axis], points[0][axis]);
+                const __m128d minimum = _mm_set_pd(
+                    active[1] ? bvh[nodes[1]].box.minimum[axis] : points[1][axis],
+                    active[0] ? bvh[nodes[0]].box.minimum[axis] : points[0][axis]);
+                const __m128d maximum = _mm_set_pd(
+                    active[1] ? bvh[nodes[1]].box.maximum[axis] : points[1][axis],
+                    active[0] ? bvh[nodes[0]].box.maximum[axis] : points[0][axis]);
+                const __m128d delta = _mm_max_pd(_mm_setzero_pd(),
+                    _mm_max_pd(_mm_sub_pd(minimum, point), _mm_sub_pd(point, maximum)));
+                squared = _mm_add_pd(squared, _mm_mul_pd(delta, delta));
+            }
+            _mm_storeu_pd(lower_squared.data(), squared);
+            // Use packed bounds when rejection is separated from the current
+            // best by a floating-point guard. Confirm near the decision plane
+            // in scalar order so feature ties remain bit-for-bit identical.
+            for (std::size_t lane = 0; lane < 2; ++lane)
+            {
+                if (!active[lane]) continue;
+                const double guard = 256.0 * std::numeric_limits<double>::epsilon() *
+                    std::max(1.0, best_squared[lane]);
+                if (std::isfinite(best_squared[lane]) &&
+                    lower_squared[lane] < best_squared[lane] - guard)
+                    continue;
+                const double scalar_lower = detail::aabb_distance(
+                    {points[lane], points[lane]}, bvh[nodes[lane]].box);
+                lower_squared[lane] = scalar_lower * scalar_lower;
+            }
+#else
+            for (std::size_t lane = 0; lane < 2; ++lane)
+            {
+                if (!active[lane]) continue;
+                const double lower = detail::aabb_distance(
+                    {points[lane], points[lane]}, bvh[nodes[lane]].box);
+                lower_squared[lane] = lower * lower;
+            }
+#endif
+            for (std::size_t lane = 0; lane < 2; ++lane)
+            {
+                if (!active[lane]) continue;
+                if (lower_squared[lane] > best_squared[lane]) continue;
+                const BvhNode& node = bvh[nodes[lane]];
+                if (node.leaf())
+                {
+                    for (std::uint32_t i = 0; i < node.count; ++i)
+                    {
+                        const std::uint32_t triangle_index =
+                            bvh_triangles[node.begin + i];
+                        const Triangle& triangle = mesh.triangles[triangle_index];
+                        const ClosestPoint closest = closest_point_on_triangle(
+                            points[lane], mesh.vertices[triangle.vertex[0]],
+                            mesh.vertices[triangle.vertex[1]],
+                            mesh.vertices[triangle.vertex[2]]);
+                        const double distance_squared = squared_norm(
+                            points[lane] - closest.point);
+                        if (distance_squared < best_squared[lane] ||
+                            (distance_squared == best_squared[lane] &&
+                             triangle_index < best_triangle[lane]))
+                        {
+                            best_squared[lane] = distance_squared;
+                            best_triangle[lane] = triangle_index;
+                        }
+                    }
+                    continue;
+                }
+                const double left_distance = detail::aabb_distance(
+                    {points[lane], points[lane]}, bvh[node.left].box);
+                const double right_distance = detail::aabb_distance(
+                    {points[lane], points[lane]}, bvh[node.right].box);
+                if (left_distance < right_distance)
+                {
+                    stacks[lane][stack_sizes[lane]++] = node.right;
+                    stacks[lane][stack_sizes[lane]++] = node.left;
+                }
+                else
+                {
+                    stacks[lane][stack_sizes[lane]++] = node.left;
+                    stacks[lane][stack_sizes[lane]++] = node.right;
+                }
+            }
+        }
+        return best_triangle;
+    }
+
     SurfaceMesh mesh;
     MeshValidation validation;
     Aabb bounds{};
@@ -1039,7 +1157,10 @@ QueryResult ExactSurface::query(Vec3 point) const
     const std::uint32_t triangle = impl_->nearest_triangle(point);
     QueryResult result = detail::exact_query_triangle(
         impl_->mesh, &impl_->pseudo_normals,
-        point, &triangle, 1, false);
+        point, &triangle, 1,
+        impl_->composition == CompositionPolicy::SeparateAssets);
+    if (impl_->composition == CompositionPolicy::SeparateAssets)
+        return result;
     const bool inside = impl_->inside_composed(point);
     const double unsigned_distance = std::abs(result.phi);
     result.phi = inside ? -unsigned_distance : unsigned_distance;
@@ -1052,6 +1173,51 @@ QueryResult ExactSurface::query(Vec3 point) const
     return result;
 }
 
+void ExactSurface::query_batch(
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out) const
+{
+    if (count != 0 && (!points || !out))
+        throw std::invalid_argument("invalid exact batch query arguments");
+#if !defined(NEXSDF_GEOMETRY_SSE2)
+    for (std::size_t index = 0; index < count; ++index)
+        out[index] = query(points[index]);
+    return;
+#else
+    std::size_t index = 0;
+    for (; index + 1 < count; index += 2)
+    {
+        const auto triangles = impl_->nearest_triangle_pair(
+            points[index], points[index + 1]);
+        for (std::size_t lane = 0; lane < 2; ++lane)
+        {
+            const Vec3 point = points[index + lane];
+            const std::uint32_t triangle = triangles[lane];
+            QueryResult result = detail::exact_query_triangle(
+                impl_->mesh, &impl_->pseudo_normals, point, &triangle, 1,
+                impl_->composition == CompositionPolicy::SeparateAssets);
+            if (impl_->composition == CompositionPolicy::SeparateAssets)
+            {
+                out[index + lane] = result;
+                continue;
+            }
+            const bool inside = impl_->inside_composed(point);
+            const double unsigned_distance = std::abs(result.phi);
+            result.phi = inside ? -unsigned_distance : unsigned_distance;
+            if (unsigned_distance > kTiny)
+                result.raw_gradient = (inside ? -1.0 : 1.0) *
+                    (point - result.witness) / unsigned_distance;
+            else if (inside)
+                result.raw_gradient = -1.0 * result.raw_gradient;
+            result.unit_normal = normalized(result.raw_gradient);
+            out[index + lane] = result;
+        }
+    }
+    if (index < count) out[index] = query(points[index]);
+#endif
+}
+
 QueryResult ExactSurface::query_subset(
     Vec3 point,
     const std::uint32_t* triangle_indices,
@@ -1059,7 +1225,10 @@ QueryResult ExactSurface::query_subset(
 {
     QueryResult result = detail::exact_query_triangle(
         impl_->mesh, &impl_->pseudo_normals,
-        point, triangle_indices, count, false);
+        point, triangle_indices, count,
+        impl_->composition == CompositionPolicy::SeparateAssets);
+    if (impl_->composition == CompositionPolicy::SeparateAssets)
+        return result;
     const bool inside = impl_->inside_composed(point);
     const double unsigned_distance = std::abs(result.phi);
     result.phi = inside ? -unsigned_distance : unsigned_distance;

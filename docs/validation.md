@@ -6,6 +6,11 @@ backend changes. It builds one asset configuration, samples it against
 row. `scripts/run_validation_matrix.ps1` applies the same protocol to a matrix
 of models, reconstructions, and resolutions.
 
+Schema `nexsdf-validation-v3` separates build and query backend/worker fields
+and records depth, leaf-size, tolerance, padding, and derivative-step choices.
+The writer validates an existing header before append; v1/v2 files remain
+historical results and are not append-compatible with v3.
+
 ## Deterministic sample policy
 
 - Field samples use a three-dimensional Halton sequence with bases 2, 3, and 5
@@ -30,8 +35,9 @@ passes and the requested number of measured repetitions.
 ## Resource and provenance fields
 
 The schema records the FNV-1a-64 content hash of the source model, complete
-build choices, sample counts, seed, compiler, build configuration, backend,
-worker count, serialized asset bytes, build and warmed-query time, and the
+build choices, sample counts, seed, compiler, build configuration, separate
+build/query backends and worker counts, serialized asset bytes, build and
+warmed-query time, and the
 process peak working set. The operating-system process peak includes loader and
 tool overhead; it must be compared only with otherwise equivalent one-build
 processes. Timing and peak memory are observations, never correctness gates.
@@ -41,20 +47,25 @@ processes. Timing and peak memory are observations, never correctness gates.
 ```powershell
 scripts/run_validation_matrix.ps1 -Profile Smoke -Configuration Release
 scripts/run_validation_matrix.ps1 -Profile Full -Configuration Release
+scripts/run_backend_comparison.ps1 -Configuration Release -Threads 8
+scripts/run_backend_comparison.ps1 -Configuration Release -Cuda
 ```
 
 `Smoke` covers cube and sphere meshes at 16 and 32 with all three dense
-reconstructions. `Full` covers sphere, cone, cam, and gear at 32, 64, 128, and
-256. A full 256-cubed tricubic or Gradient Taylor asset may require substantial
-memory; a resource failure is recorded as an unavailable configuration and
-must not be silently replaced with a smaller resolution.
+reconstructions. `Full` covers sphere, cone, cam, and gear with dense
+trilinear/tricubic/Gradient Taylor at 32, 64, 128, and 256; exact influence
+octrees at depths 4 and 6; and adaptive trilinear/tricubic octrees at
+depth/tolerance pairs 6/0.01 and 8/0.0025. A full 256-cubed tricubic or Gradient
+Taylor asset may require substantial memory; a resource failure is a failed
+configuration and must not be silently replaced with a smaller resolution.
 
 ## Regression contract
 
-`tests/validation_smoke.cmake` requires both surface directions and every
-distance/derivative/resource column, rejects non-finite rows, and repeats the
-same run. All deterministic fields must be byte-identical; measured timing and
-process peak memory are excluded from the repeatability comparison.
+`tests/validation_smoke.cmake` requires both surface directions, every
+distance/derivative/resource/build-option column, and dense/exact/adaptive
+rows. It rejects non-finite values and mismatched append schemas, then repeats
+the dense run. All deterministic fields must be byte-identical; measured
+timing and process peak memory are excluded from the repeatability comparison.
 
 ## Last verified against
 

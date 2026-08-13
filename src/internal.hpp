@@ -114,6 +114,18 @@ std::shared_ptr<const AssetData> build_asset_data(
     const SurfaceMesh& mesh,
     const BuildOptions& options);
 QueryResult query_asset(const AssetData& data, Vec3 point);
+bool query_batch_simd(
+    const AssetData& data,
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out);
+bool cuda_backend_available() noexcept;
+void build_dense_cuda(AssetData& data, const BuildOptions& options);
+bool query_batch_cuda(
+    const AssetData& data,
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out);
 void save_asset(const AssetData& data, const std::string& path);
 std::shared_ptr<const AssetData> load_asset(const std::string& path);
 

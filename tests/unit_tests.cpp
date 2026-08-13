@@ -616,6 +616,176 @@ void test_invalid_option_pairs()
     check(rejected, "invalid representation/reconstruction pair is rejected");
 }
 
+void test_parallel_and_batch_backends()
+{
+    nexsdf::BuildOptions scalar = grid_options(nexsdf::Reconstruction::Trilinear);
+    scalar.resolution = {16, 16, 16};
+    const nexsdf::Asset scalar_asset = nexsdf::build(cube_mesh(), scalar);
+    nexsdf::BuildOptions parallel = scalar;
+    parallel.backend = nexsdf::ComputeBackend::CpuParallel;
+    parallel.worker_threads = 4;
+    const nexsdf::Asset parallel_asset = nexsdf::build(cube_mesh(), parallel);
+    const nexsdf::Asset parallel_repeat = nexsdf::build(cube_mesh(), parallel);
+    check(parallel_asset.info().build_backend == nexsdf::ComputeBackend::CpuParallel &&
+          parallel_asset.info().worker_threads == 4,
+        "parallel build provenance records its deterministic worker count");
+
+    const std::filesystem::path scalar_path = temporary_asset_path("nexsdf-scalar.nsdf");
+    const std::filesystem::path parallel_path = temporary_asset_path("nexsdf-parallel.nsdf");
+    const std::filesystem::path parallel_repeat_path =
+        temporary_asset_path("nexsdf-parallel-repeat.nsdf");
+    scalar_asset.save(scalar_path.string());
+    parallel_asset.save(parallel_path.string());
+    parallel_repeat.save(parallel_repeat_path.string());
+    const nexsdf::Asset loaded = nexsdf::Asset::load(parallel_path.string());
+    check(loaded.info().format_minor == 3 &&
+          loaded.info().build_backend == nexsdf::ComputeBackend::CpuParallel &&
+          loaded.info().worker_threads == 4,
+        "NSDF 1.3 round trip preserves build backend provenance");
+    nexsdf_asset* handle = nullptr;
+    check(nexsdf_asset_open(parallel_path.string().c_str(), &handle) ==
+              NEXSDF_STATUS_OK,
+        "C API opens an NSDF 1.3 parallel asset");
+    nexsdf_asset_provenance backend_provenance{};
+    backend_provenance.struct_size = sizeof(backend_provenance);
+    check(nexsdf_asset_get_provenance(handle, &backend_provenance) ==
+              NEXSDF_STATUS_OK &&
+          backend_provenance.build_backend == 1 &&
+          backend_provenance.worker_threads == 4,
+        "C API exposes NSDF 1.3 backend provenance");
+    struct LegacyProvenance
+    {
+        std::uint32_t struct_size;
+        std::uint32_t influence_filter;
+        std::uint64_t candidate_index_count;
+        std::uint32_t composition;
+        std::uint32_t component_count;
+        std::uint32_t active_component_count;
+    } legacy{};
+    legacy.struct_size = sizeof(legacy);
+    check(nexsdf_asset_get_provenance(handle,
+              reinterpret_cast<nexsdf_asset_provenance*>(&legacy)) ==
+              NEXSDF_STATUS_OK && legacy.component_count == 1,
+        "size-versioned C provenance remains compatible with the 1.2 prefix");
+    nexsdf_asset_close(handle);
+
+    std::ifstream scalar_input(scalar_path, std::ios::binary);
+    std::ifstream parallel_input(parallel_path, std::ios::binary);
+    std::ifstream parallel_repeat_input(parallel_repeat_path, std::ios::binary);
+    std::vector<char> scalar_bytes{
+        std::istreambuf_iterator<char>(scalar_input), std::istreambuf_iterator<char>()};
+    std::vector<char> parallel_bytes{
+        std::istreambuf_iterator<char>(parallel_input), std::istreambuf_iterator<char>()};
+    std::vector<char> parallel_repeat_bytes{
+        std::istreambuf_iterator<char>(parallel_repeat_input),
+        std::istreambuf_iterator<char>()};
+    check(scalar_bytes.size() == parallel_bytes.size(),
+        "scalar and parallel assets have identical serialized shape");
+    check(parallel_bytes == parallel_repeat_bytes,
+        "repeated parallel builds serialize byte-for-byte identically");
+
+    std::vector<nexsdf::Vec3> points;
+    for (int index = 0; index < 257; ++index)
+    {
+        points.push_back({
+            -1.1 + 2.2 * ((index * 17) % 257) / 256.0,
+            -1.1 + 2.2 * ((index * 43) % 257) / 256.0,
+            -1.1 + 2.2 * ((index * 97) % 257) / 256.0});
+    }
+    std::vector<nexsdf::QueryResult> scalar_results(points.size());
+    std::vector<nexsdf::QueryResult> parallel_results(points.size());
+    std::vector<nexsdf::QueryResult> simd_results(points.size());
+    std::vector<nexsdf::QueryResult> default_results(points.size());
+    nexsdf::BatchQueryOptions scalar_query;
+    scalar_query.backend = nexsdf::BatchBackend::Scalar;
+    scalar_asset.query_batch(points.data(), points.size(), scalar_results.data(), scalar_query);
+    scalar_asset.query_batch(points.data(), points.size(), default_results.data());
+    nexsdf::BatchQueryOptions parallel_query = scalar_query;
+    parallel_query.worker_threads = 4;
+    parallel_asset.query_batch(
+        points.data(), points.size(), parallel_results.data(), parallel_query);
+    nexsdf::BatchQueryOptions simd_query;
+    simd_query.backend = nexsdf::BatchBackend::AutoSimd;
+    parallel_asset.query_batch(points.data(), points.size(), simd_results.data(), simd_query);
+    for (std::size_t index = 0; index < points.size(); ++index)
+    {
+        near(parallel_results[index].phi, scalar_results[index].phi, 0.0,
+            "parallel dense build/query preserves scalar phi bit-for-bit");
+        near(default_results[index].phi, scalar_results[index].phi, 0.0,
+            "default batch query preserves the legacy scalar evaluation order");
+        near(nexsdf::norm(parallel_results[index].raw_gradient -
+            scalar_results[index].raw_gradient), 0.0, 0.0,
+            "parallel dense build/query preserves scalar gradient bit-for-bit");
+        near(simd_results[index].phi, scalar_results[index].phi, 2.0e-15,
+            "SIMD dense trilinear phi is scalar-equivalent");
+        near(nexsdf::norm(simd_results[index].raw_gradient -
+            scalar_results[index].raw_gradient), 0.0, 2.0e-14,
+            "SIMD dense trilinear gradient is scalar-equivalent");
+    }
+
+    nexsdf::BuildOptions exact_scalar;
+    exact_scalar.representation = nexsdf::Representation::ExactInfluenceOctree;
+    exact_scalar.reconstruction = nexsdf::Reconstruction::Exact;
+    exact_scalar.influence_filter = nexsdf::InfluenceFilter::PaperGjk;
+    exact_scalar.maximum_depth = 3;
+    exact_scalar.start_depth = 1;
+    exact_scalar.maximum_triangles_per_leaf = 2;
+    nexsdf::BuildOptions exact_parallel = exact_scalar;
+    exact_parallel.backend = nexsdf::ComputeBackend::CpuParallel;
+    exact_parallel.worker_threads = 4;
+    const nexsdf::Asset exact_reference = nexsdf::build(cube_mesh(), exact_scalar);
+    const nexsdf::Asset exact_threaded = nexsdf::build(cube_mesh(), exact_parallel);
+    check(exact_reference.info().node_count == exact_threaded.info().node_count &&
+          exact_reference.info().candidate_index_count ==
+              exact_threaded.info().candidate_index_count,
+        "parallel exact-octree child filtering preserves deterministic topology");
+    exact_reference.query_batch(
+        points.data(), points.size(), scalar_results.data(), scalar_query);
+    exact_threaded.query_batch(
+        points.data(), points.size(), parallel_results.data(), parallel_query);
+    for (std::size_t index = 0; index < points.size(); ++index)
+    {
+        near(parallel_results[index].phi, scalar_results[index].phi, 0.0,
+            "parallel exact octree preserves scalar phi bit-for-bit");
+        check(parallel_results[index].face_id == scalar_results[index].face_id &&
+              parallel_results[index].feature == scalar_results[index].feature &&
+              parallel_results[index].branch_signature ==
+                  scalar_results[index].branch_signature,
+            "parallel exact octree preserves feature and branch identity");
+    }
+    std::error_code error;
+    std::filesystem::remove(scalar_path, error);
+    std::filesystem::remove(parallel_path, error);
+    std::filesystem::remove(parallel_repeat_path, error);
+}
+
+void test_exact_surface_simd_batch()
+{
+    const nexsdf::ExactSurface exact(cube_mesh());
+    std::vector<nexsdf::Vec3> points;
+    for (int index = 0; index < 259; ++index)
+        points.push_back({
+            -1.4 + 2.8 * ((index * 19) % 259) / 258.0,
+            -1.4 + 2.8 * ((index * 47) % 259) / 258.0,
+            -1.4 + 2.8 * ((index * 101) % 259) / 258.0});
+    std::vector<nexsdf::QueryResult> batch(points.size());
+    exact.query_batch(points.data(), points.size(), batch.data());
+    for (std::size_t index = 0; index < points.size(); ++index)
+    {
+        const nexsdf::QueryResult scalar = exact.query(points[index]);
+        near(batch[index].phi, scalar.phi, 0.0,
+            "SIMD-friendly exact BVH batch preserves phi bit-for-bit");
+        check(batch[index].face_id == scalar.face_id &&
+              batch[index].feature == scalar.feature &&
+              batch[index].branch_signature == scalar.branch_signature &&
+              nexsdf::norm(batch[index].witness - scalar.witness) == 0.0,
+            "SIMD-friendly exact BVH batch preserves witness and feature identity at " +
+                std::to_string(index) + " batch_face=" +
+                std::to_string(batch[index].face_id) + " scalar_face=" +
+                std::to_string(scalar.face_id));
+    }
+}
+
 } // namespace
 
 int main()
@@ -631,6 +801,8 @@ int main()
         test_serialization_and_c_api();
         test_octree_serialization();
         test_invalid_option_pairs();
+        test_parallel_and_batch_backends();
+        test_exact_surface_simd_batch();
     }
     catch (const std::exception& error)
     {

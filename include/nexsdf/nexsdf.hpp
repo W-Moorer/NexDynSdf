@@ -100,6 +100,26 @@ enum class CompositionPolicy : std::uint32_t
     NestedParity = 2
 };
 
+enum class ComputeBackend : std::uint32_t
+{
+    CpuScalar = 0,
+    CpuParallel = 1,
+    CudaExperimental = 2
+};
+
+enum class BatchBackend : std::uint32_t
+{
+    Scalar = 0,
+    AutoSimd = 1,
+    CudaExperimental = 2
+};
+
+struct BatchQueryOptions
+{
+    BatchBackend backend{BatchBackend::Scalar};
+    std::uint32_t worker_threads{1};
+};
+
 enum class Status : std::uint32_t
 {
     Ok = 0,
@@ -162,12 +182,14 @@ struct BuildOptions
     double absolute_padding{0.0};
     double error_tolerance{1.0e-3};
     double derivative_step{0.0};
+    ComputeBackend backend{ComputeBackend::CpuScalar};
+    std::uint32_t worker_threads{1};
 };
 
 struct AssetInfo
 {
     std::uint32_t format_major{1};
-    std::uint32_t format_minor{2};
+    std::uint32_t format_minor{3};
     Representation representation{Representation::DenseGrid};
     Reconstruction reconstruction{Reconstruction::Trilinear};
     InfluenceFilter influence_filter{InfluenceFilter::AabbLipschitz};
@@ -184,6 +206,8 @@ struct AssetInfo
     std::uint32_t component_count{1};
     std::uint32_t active_component_count{1};
     bool has_measured_error{false};
+    ComputeBackend build_backend{ComputeBackend::CpuScalar};
+    std::uint32_t worker_threads{1};
 };
 
 NEXSDF_API SurfaceMesh load_obj(const std::string& path);
@@ -193,6 +217,7 @@ NEXSDF_API SurfaceMesh load_surface_mesh(const std::string& path);
 NEXSDF_API std::vector<CreaseEdge> load_eng_v1(
     const std::string& path,
     const SurfaceMesh& associated_mesh);
+NEXSDF_API bool is_cuda_backend_available() noexcept;
 NEXSDF_API MeshValidation validate_mesh(const SurfaceMesh& mesh);
 
 class NEXSDF_API ExactSurface
@@ -210,6 +235,7 @@ public:
     std::size_t active_component_count() const noexcept;
     const std::vector<std::uint32_t>& active_triangles() const noexcept;
     QueryResult query(Vec3 point) const;
+    void query_batch(const Vec3* points, std::size_t count, QueryResult* out) const;
     QueryResult query_subset(
         Vec3 point,
         const std::uint32_t* triangle_indices,
@@ -236,6 +262,11 @@ public:
     const AssetInfo& info() const noexcept;
     QueryResult query(Vec3 point) const;
     void query_batch(const Vec3* points, std::size_t count, QueryResult* out) const;
+    void query_batch(
+        const Vec3* points,
+        std::size_t count,
+        QueryResult* out,
+        const BatchQueryOptions& options) const;
     void save(const std::string& path) const;
     static Asset load(const std::string& path);
 

@@ -4,8 +4,9 @@
 
 NexDynSdf is split into mesh import, exact surface evaluation, field building,
 asset serialization, read-only runtime querying, and optional offline tools. C
-and C++ entry points are packaged in one zero-third-party-dependency library;
-NexDyn runtime use should load prebuilt assets through the C ABI.
+and C++ entry points are packaged in one library; its default CPU build has no
+third-party dependency, while the opt-in experiment depends on CUDA. NexDyn
+runtime use should load prebuilt assets through the C ABI.
 
 ## Main data flow
 
@@ -16,6 +17,11 @@ OBJ / NSM / STL -> SurfaceMesh -> validation -> ExactSurface
                   \-> nexsdfviz -> PPM -> standard-library PNG conversion
   \-> nexsdfmodelaudit -> catalog-wide parser/topology report
 ```
+
+Offline builders may select scalar CPU, deterministic fixed-partition CPU, or
+the optional experimental CUDA dense-trilinear backend. Runtime assets do not
+retain device allocations. The public batch API selects scalar, SIMD-aware, or
+optional CUDA evaluation while preserving the same result structure.
 
 ## Public boundary
 
@@ -54,8 +60,9 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
 - Multiple shells require an explicit solid-union or nested-parity build policy;
   intersecting/touching shells are rejected as ambiguous.
 - Gradient Taylor is intentionally discontinuous across cell boundaries.
-- The builder is single-threaded and CPU-only. Internal exact sampling uses a
-  BVH, but no SIMD/GPU/parallel generation path is implemented.
+- CPU parallel/SIMD paths are implemented, but the SIMD fast path currently
+  specializes dense trilinear queries. CUDA is experimental, opt-in, and
+  currently limited to one-shell dense trilinear assets.
 - No MuJoCo contact search/manifold adapter is implemented in this repository;
   this module provides only SDF generation, assets, and point queries.
 - `.nsdf` format major version 1 is validated on load but not yet guaranteed as
@@ -68,7 +75,8 @@ Date: 2026-08-13.
 Sources:
 
 - `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-  `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
+  `src/mesh_io.cpp`, `src/simd.cpp`, `src/cuda_backend.cu`,
+  `src/cuda_stub.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
   `tools/nexsdfmodelaudit.cpp`
 - `include/nexsdf/nexsdf.hpp`, `include/nexsdf/c_api.h`
 
@@ -80,6 +88,7 @@ Tests:
 - `tests/model_catalog_smoke.cmake`
 - `tests/visualization_smoke.cmake`
 - `tests/benchmark_exact.cpp`
+- `tests/cuda_tests.cpp`
 - `tests/install_consumer/main.c`
 
 Commands run in this session:
@@ -93,8 +102,11 @@ Commands run in this session:
 - `scripts/verify_install.ps1 -Configuration Release`: passed and verified all
   34 installed model hashes from a clean prefix.
 - `ctest --test-dir build-test-static-final -C Release -L benchmark
-  --output-on-failure -V`: passed; zero numerical difference and 48.4474x
-  observed BVH speedup on the catalogued Gear model.
+  --output-on-failure -V`: passed; zero numerical difference for scalar and
+  SIMD-friendly batch BVH queries. Host timings are recorded in
+  `wiki/TestsAndValidation.md`.
+- `ctest --test-dir build-backend-cuda -C Release -L gpu
+  --output-on-failure -V`: passed on the available RTX 3070.
 - `scripts/generate_readme_images.ps1 -Configuration Release
   -ImageResolution 512`: passed.
 - Pressure-lubricated cam generation and in-domain query smoke: passed for all

@@ -2,10 +2,10 @@
 
 ## Scope
 
-This page records planned work only. It does not describe currently implemented
-behavior. The current implementation and verified limitations remain defined by
-`docs/architecture.md`, `docs/algorithms.md`, `wiki/SDFBackend.md`, and the
-tests.
+This page records the M0-M5 delivery sequence and its implemented boundaries.
+Verified behavior remains defined by `docs/architecture.md`,
+`docs/algorithms.md`, `wiki/SDFBackend.md`, and the tests; open acceptance gates
+are stated explicitly rather than presented as completed behavior.
 
 The work is ordered so that physical and numerical correctness gates precede
 performance optimization. A milestone is complete only when its stated tests
@@ -38,7 +38,9 @@ non-finite metrics.
 
 Implementation: `tools/nexsdfvalidate.cpp`,
 `scripts/run_validation_matrix.ps1`, `tests/validation_smoke.cmake`, and
-`docs/validation.md`. The full matrix remains an explicit, machine-dependent
+`docs/validation.md`. Schema v3 records all dense and octree build axes and the
+Full profile covers the stated dense resolutions plus exact/adaptive depth and
+tolerance sweeps. The full matrix remains an explicit, machine-dependent
 benchmark run rather than a normal regression test.
 
 ## M1: paper-faithful exact influence filtering (implemented)
@@ -127,7 +129,7 @@ versioned sidecar against an associated mesh; ENG remains non-standalone by
 design. Model tests cover topology, format equivalence, association, and
 truncation failure.
 
-## M4: deterministic CPU parallelism and SIMD
+## M4: deterministic CPU parallelism and SIMD (implementation complete)
 
 Optimize only after M0 provides correctness and resource measurements.
 
@@ -144,7 +146,21 @@ Acceptance requires one-thread versus multi-thread repeatability, ThreadSanitize
 or an available equivalent race audit, unchanged physical sign/domain behavior,
 and performance results from the M0 protocol rather than a single tuned model.
 
-## M5: optional GPU generation and query experiments
+Implementation: `ComputeBackend::CpuParallel` uses fixed contiguous partitions
+for dense samples, adaptive error probes, and the upper exact-octree child
+filters; each thread writes a disjoint output slot and serial merge order stays
+unchanged. Exceptions are captured and rethrown after join. `BatchBackend`
+selects scalar or SIMD-aware dense-trilinear query kernels and may apply the
+same fixed partition to scalar fallback. NSDF 1.3 and the size-versioned C
+provenance structure record build backend and worker count. Scalar/parallel
+exact output and scalar/SIMD approximate output are regression tested. Exact
+reference sampling also exposes a two-lane SIMD-friendly BVH batch traversal;
+near pruning decisions are confirmed in scalar order to preserve deterministic
+feature ties. The Windows/MSVC regression is complete; the stated sanitizer
+promotion gate remains open because ThreadSanitizer is unavailable on this
+host.
+
+## M5: optional GPU generation and query experiments (experiment implemented)
 
 Treat GPU support as an optional backend, not a dependency of the stable C ABI.
 
@@ -158,6 +174,17 @@ Treat GPU support as an optional backend, not a dependency of the stable C ABI.
 Acceptance requires CPU/GPU comparison over the full M0 matrix, explicit error
 budgets, corruption-safe outputs, and benchmarks that include host/device
 transfer and compilation/warm-up policy.
+
+Implementation: opt-in `NEXSDF_ENABLE_CUDA` compiles a double-precision CUDA
+backend for dense-trilinear exact mesh sampling and batch reconstruction. CPU
+mesh validation and NSDF serialization remain authoritative; the default build
+links no CUDA runtime. Unsupported representations/compositions and unavailable
+devices fail explicitly. `nexsdf.cuda` compares CPU and GPU generation/query at
+1,024 deterministic points under a `2e-12` scalar and `2e-11` gradient budget.
+`scripts/run_backend_comparison.ps1 -Cuda` records end-to-end construction and
+query timings, including allocations and host/device transfer, in the M0 TSV.
+The full multi-model/multi-resolution GPU matrix remains an explicit benchmark,
+not a normal regression.
 
 ## Delivery order
 
@@ -176,18 +203,22 @@ and asset-format documentation, `wiki/SDFBackend.md`, and
 
 Date: 2026-08-13.
 
-Sources used to define the current/planned boundary:
+Sources used to verify the implemented boundary:
 
 - `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-  `src/mesh_io.cpp`
+  `src/mesh_io.cpp`, `src/simd.cpp`, `src/cuda_backend.cu`,
+  `src/cuda_stub.cpp`
 - `include/nexsdf/nexsdf.hpp`, `include/nexsdf/c_api.h`
 - `models/AUDIT.tsv`, `models/CATALOG.tsv`
 - `docs/architecture.md`, `docs/algorithms.md`,
   `docs/reference-provenance.md`
 
-Tests and validation used as the existing baseline:
+Tests and validation:
 
 - `tests/unit_tests.cpp`, `tests/model_tests.cpp`,
-  `tests/model_catalog_smoke.cmake`, `tests/benchmark_exact.cpp`
-- `scripts/run_tests.ps1 -Configuration Release` passed on 2026-08-13 before
-  this documentation-only roadmap was added.
+  `tests/model_catalog_smoke.cmake`, `tests/benchmark_exact.cpp`,
+  `tests/cuda_tests.cpp`
+- Release static/shared unit, regression, and integration suites; installed
+  consumer verification; opt-in CUDA integration; and the backend comparison
+  protocol were run on 2026-08-13. Exact commands and host observations are
+  recorded in `wiki/TestsAndValidation.md`.

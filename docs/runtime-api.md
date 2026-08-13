@@ -57,13 +57,17 @@ unit normal exists merely because the scalar value is valid.
 
 The original `nexsdf_asset_info` layout is unchanged. Filter/backend metadata
 uses `nexsdf_asset_get_provenance` and a size-versioned
-`nexsdf_asset_provenance` structure. Callers must initialize `struct_size` to
-`sizeof(nexsdf_asset_provenance)`. `influence_filter` identifies AABB (0), GJK
+`nexsdf_asset_provenance` structure. Callers initialize `struct_size` to the
+size known at compile time. `influence_filter` identifies AABB (0), GJK
 (1), or Frank-Wolfe (2); `candidate_index_count` is the total number of stored
 leaf indices and is useful for offline size/performance comparisons.
 `composition` identifies separate assets (0), solid union (1), or nested parity
 (2); component counts distinguish source shells from active distance
 boundaries.
+NSDF 1.3 also records the offline `build_backend` and `worker_threads` fields.
+The C provenance reader accepts the older prefix size as well as the current
+larger structure, so this extension does not invalidate an already compiled
+1.2 caller.
 
 ## Batch behavior
 
@@ -78,6 +82,12 @@ Loaded assets are immutable. Read-only queries use local traversal state and
 can be issued concurrently against one handle. Handle destruction must be
 externally synchronized with outstanding queries. `nexsdf_last_error()` is
 thread-local and is overwritten by the next C API call on that thread.
+
+The C ABI intentionally retains one batch function and chooses the normal CPU
+path. C++ offline/experimental clients may use `BatchQueryOptions` to select
+scalar, auto-SIMD, or CUDA evaluation and a deterministic CPU worker count.
+The default remains scalar so existing three-argument `query_batch` calls keep
+their previous floating-point evaluation order; SIMD and CUDA are explicit.
 
 ## Status mapping
 

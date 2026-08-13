@@ -21,7 +21,8 @@ void usage()
               << "  --max-triangles N  --tolerance X  --padding X\n"
               << "  --absolute-padding X  --derivative-step X\n"
               << "  --influence aabb|gjk|frank-wolfe\n"
-              << "  --composition separate|union|parity\n";
+              << "  --composition separate|union|parity\n"
+              << "  --backend scalar|parallel|cuda  --threads N\n";
 }
 
 std::string lower(std::string value)
@@ -62,6 +63,14 @@ nexsdf::CompositionPolicy composition_policy(const std::string& value)
     if (value == "union") return nexsdf::CompositionPolicy::SolidUnion;
     if (value == "parity") return nexsdf::CompositionPolicy::NestedParity;
     throw std::invalid_argument("unknown composition policy: " + value);
+}
+
+nexsdf::ComputeBackend compute_backend(const std::string& value)
+{
+    if (value == "scalar") return nexsdf::ComputeBackend::CpuScalar;
+    if (value == "parallel") return nexsdf::ComputeBackend::CpuParallel;
+    if (value == "cuda") return nexsdf::ComputeBackend::CudaExperimental;
+    throw std::invalid_argument("unknown compute backend: " + value);
 }
 
 std::string next(int& index, int count, char** values, const char* option)
@@ -120,6 +129,8 @@ int main(int argc, char** argv)
             else if (option == "--derivative-step") options.derivative_step = std::stod(next(i, argc, argv, option.c_str()));
             else if (option == "--influence") options.influence_filter = influence_filter(next(i, argc, argv, option.c_str()));
             else if (option == "--composition") options.composition = composition_policy(next(i, argc, argv, option.c_str()));
+            else if (option == "--backend") options.backend = compute_backend(next(i, argc, argv, option.c_str()));
+            else if (option == "--threads") options.worker_threads = u32(next(i, argc, argv, option.c_str()), option.c_str());
             else if (option == "--help") { usage(); return 0; }
             else throw std::invalid_argument("unknown option: " + option);
         }

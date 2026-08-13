@@ -15,8 +15,13 @@ endif()
 option(NEXSDF_BUILD_SHARED "Build the query library as a shared library" OFF)
 option(NEXSDF_BUILD_TOOLS "Build command-line tools" ON)
 option(NEXSDF_BUILD_TESTS "Build tests" ON)
+option(NEXSDF_ENABLE_SIMD "Enable CPU SIMD batch-query kernels" ON)
+option(NEXSDF_ENABLE_CUDA "Build the optional experimental CUDA backend" OFF)
+set(NEXSDF_CUDA_ARCHITECTURES "75;86" CACHE STRING
+    "CUDA architectures for the optional experimental backend")
 
 include(GNUInstallDirs)
+find_package(Threads REQUIRED)
 
 set(NEXSDF_LIBRARY_TYPE STATIC)
 if(NEXSDF_BUILD_SHARED)
@@ -30,6 +35,7 @@ add_library(NexSdfQuery ${NEXSDF_LIBRARY_TYPE}
     src/influence.cpp
     src/mesh_io.cpp
     src/reconstruction.cpp
+    src/simd.cpp
 )
 add_library(NexSdf::Query ALIAS NexSdfQuery)
 set_target_properties(NexSdfQuery PROPERTIES EXPORT_NAME Query)
@@ -39,13 +45,33 @@ target_include_directories(NexSdfQuery
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 target_compile_definitions(NexSdfQuery PRIVATE NEXSDF_BUILDING_LIBRARY=1)
+target_link_libraries(NexSdfQuery PRIVATE Threads::Threads)
+if(NEXSDF_ENABLE_SIMD)
+    target_compile_definitions(NexSdfQuery PRIVATE NEXSDF_ENABLE_SIMD=1)
+endif()
+
+if(NEXSDF_ENABLE_CUDA)
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    target_sources(NexSdfQuery PRIVATE src/cuda_backend.cu)
+    target_compile_definitions(NexSdfQuery PRIVATE NEXSDF_ENABLE_CUDA=1)
+    target_link_libraries(NexSdfQuery PRIVATE CUDA::cudart)
+    set_target_properties(NexSdfQuery PROPERTIES
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED YES
+        CUDA_ARCHITECTURES "${NEXSDF_CUDA_ARCHITECTURES}")
+else()
+    target_sources(NexSdfQuery PRIVATE src/cuda_stub.cpp)
+endif()
 if(NEXSDF_BUILD_SHARED)
     target_compile_definitions(NexSdfQuery PUBLIC NEXSDF_SHARED=1)
 endif()
 if(MSVC)
-    target_compile_options(NexSdfQuery PRIVATE /W4 /permissive- /EHsc /wd4251)
+    target_compile_options(NexSdfQuery PRIVATE
+        $<$<COMPILE_LANGUAGE:C,CXX>:/W4;/permissive-;/EHsc;/wd4251>)
 else()
-    target_compile_options(NexSdfQuery PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(NexSdfQuery PRIVATE
+        $<$<COMPILE_LANGUAGE:C,CXX>:-Wall;-Wextra;-Wpedantic>)
 endif()
 
 if(NEXSDF_BUILD_TOOLS)
@@ -132,6 +158,13 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
         NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
     add_test(NAME nexsdf.benchmark.exact COMMAND nexsdf_exact_benchmark)
     set_tests_properties(nexsdf.benchmark.exact PROPERTIES LABELS benchmark)
+
+    if(NEXSDF_ENABLE_CUDA)
+        add_executable(nexsdf_cuda_tests tests/cuda_tests.cpp)
+        target_link_libraries(nexsdf_cuda_tests PRIVATE NexSdf::Query)
+        add_test(NAME nexsdf.cuda COMMAND nexsdf_cuda_tests)
+        set_tests_properties(nexsdf.cuda PROPERTIES LABELS "gpu;integration")
+    endif()
 endif()
 
 include(CMakePackageConfigHelpers)

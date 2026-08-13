@@ -2,6 +2,8 @@
 
 #include "nexsdf/nexsdf.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <exception>
 #include <new>
@@ -158,22 +160,27 @@ nexsdf_status nexsdf_asset_get_provenance(
     const nexsdf_asset* asset,
     nexsdf_asset_provenance* out_provenance)
 {
-    if (!asset || !out_provenance ||
-        out_provenance->struct_size != sizeof(nexsdf_asset_provenance))
+    constexpr std::size_t minimum_size =
+        offsetof(nexsdf_asset_provenance, build_backend);
+    if (!asset || !out_provenance || out_provenance->struct_size < minimum_size)
     {
         return fail(NEXSDF_STATUS_INVALID_ARGUMENT,
             "asset and a size-initialized provenance structure are required");
     }
     const nexsdf::AssetInfo& source = asset->asset.info();
-    const std::uint32_t size = out_provenance->struct_size;
-    std::memset(out_provenance, 0, sizeof(*out_provenance));
-    out_provenance->struct_size = size;
-    out_provenance->influence_filter =
+    const std::uint32_t requested_size = out_provenance->struct_size;
+    nexsdf_asset_provenance result{};
+    result.struct_size = requested_size;
+    result.influence_filter =
         static_cast<std::uint32_t>(source.influence_filter);
-    out_provenance->candidate_index_count = source.candidate_index_count;
-    out_provenance->composition = static_cast<std::uint32_t>(source.composition);
-    out_provenance->component_count = source.component_count;
-    out_provenance->active_component_count = source.active_component_count;
+    result.candidate_index_count = source.candidate_index_count;
+    result.composition = static_cast<std::uint32_t>(source.composition);
+    result.component_count = source.component_count;
+    result.active_component_count = source.active_component_count;
+    result.build_backend = static_cast<std::uint32_t>(source.build_backend);
+    result.worker_threads = source.worker_threads;
+    std::memcpy(out_provenance, &result,
+        std::min<std::size_t>(requested_size, sizeof(result)));
     last_error.clear();
     return NEXSDF_STATUS_OK;
 }

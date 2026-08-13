@@ -1,14 +1,18 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -18,6 +22,47 @@ namespace
 {
 
 constexpr double kTiny = 1.0e-14;
+
+template <class Function>
+void deterministic_parallel_for(
+    std::size_t count,
+    std::uint32_t requested_workers,
+    Function function)
+{
+    if (count == 0) return;
+    const std::size_t worker_count = std::min<std::size_t>(
+        std::max<std::uint32_t>(1u, requested_workers), count);
+    if (worker_count == 1)
+    {
+        for (std::size_t index = 0; index < count; ++index) function(index);
+        return;
+    }
+    std::vector<std::thread> workers;
+    workers.reserve(worker_count);
+    std::atomic_bool failed{false};
+    std::exception_ptr first_exception;
+    std::mutex exception_mutex;
+    for (std::size_t worker = 0; worker < worker_count; ++worker)
+    {
+        const std::size_t begin = count * worker / worker_count;
+        const std::size_t end = count * (worker + 1) / worker_count;
+        workers.emplace_back([=, &function, &failed, &first_exception, &exception_mutex]() {
+            try
+            {
+                for (std::size_t index = begin; index < end && !failed.load(); ++index)
+                    function(index);
+            }
+            catch (...)
+            {
+                failed.store(true);
+                std::lock_guard<std::mutex> lock(exception_mutex);
+                if (!first_exception) first_exception = std::current_exception();
+            }
+        });
+    }
+    for (std::thread& worker : workers) worker.join();
+    if (first_exception) std::rethrow_exception(first_exception);
+}
 
 std::uint64_t hash_combine(std::uint64_t seed, std::uint64_t value) noexcept
 {
@@ -93,6 +138,33 @@ void validate_options(const BuildOptions& options)
     if (options.maximum_triangles_per_leaf == 0)
     {
         throw std::invalid_argument("maximum triangles per leaf must be positive");
+    }
+    if (options.worker_threads == 0)
+    {
+        throw std::invalid_argument("worker thread count must be positive");
+    }
+    if (options.backend != ComputeBackend::CpuScalar &&
+        options.backend != ComputeBackend::CpuParallel &&
+        options.backend != ComputeBackend::CudaExperimental)
+    {
+        throw std::invalid_argument("unknown build backend");
+    }
+    if (options.backend == ComputeBackend::CpuScalar && options.worker_threads != 1)
+    {
+        throw std::invalid_argument("scalar build backend requires one worker thread");
+    }
+    if (options.backend == ComputeBackend::CudaExperimental &&
+        (options.representation != Representation::DenseGrid ||
+         options.reconstruction != Reconstruction::Trilinear))
+    {
+        throw std::invalid_argument(
+            "experimental CUDA generation currently supports dense trilinear fields");
+    }
+    if (options.backend == ComputeBackend::CudaExperimental &&
+        options.worker_threads != 1)
+    {
+        throw std::invalid_argument(
+            "experimental CUDA generation uses one host submission thread");
     }
     if (options.influence_filter != InfluenceFilter::AabbLipschitz &&
         options.influence_filter != InfluenceFilter::PaperGjk &&
@@ -197,16 +269,19 @@ void build_dense(detail::AssetData& data, const BuildOptions& options)
     {
         data.coefficients.resize(checked_multiply(
             checked_product(resolution), 4, "Gradient Taylor coefficient"));
-        for (std::uint32_t z = 0; z < resolution[2]; ++z)
-        for (std::uint32_t y = 0; y < resolution[1]; ++y)
-        for (std::uint32_t x = 0; x < resolution[0]; ++x)
-        {
+        const std::size_t count = checked_product(resolution);
+        deterministic_parallel_for(count, options.worker_threads, [&](std::size_t index) {
+            const std::uint32_t x = static_cast<std::uint32_t>(index % resolution[0]);
+            const std::uint32_t y = static_cast<std::uint32_t>(
+                (index / resolution[0]) % resolution[1]);
+            const std::uint32_t z = static_cast<std::uint32_t>(
+                index / (static_cast<std::size_t>(resolution[0]) * resolution[1]));
             const Vec3 center = regular_position(
                 data.info.domain, resolution, x, y, z, true);
             const auto sample = detail::gradient_taylor_sample(*data.exact_surface, center);
             const std::size_t offset = 4 * grid_point_index(x, y, z, resolution);
             std::copy(sample.begin(), sample.end(), data.coefficients.begin() + offset);
-        }
+        });
         data.info.coefficient_count = data.coefficients.size();
         return;
     }
@@ -217,15 +292,17 @@ void build_dense(detail::AssetData& data, const BuildOptions& options)
     if (options.reconstruction == Reconstruction::Trilinear)
     {
         data.coefficients.resize(point_count);
-        for (std::uint32_t z = 0; z < point_dimensions[2]; ++z)
-        for (std::uint32_t y = 0; y < point_dimensions[1]; ++y)
-        for (std::uint32_t x = 0; x < point_dimensions[0]; ++x)
-        {
+        deterministic_parallel_for(point_count, options.worker_threads, [&](std::size_t index) {
+            const std::uint32_t x = static_cast<std::uint32_t>(index % point_dimensions[0]);
+            const std::uint32_t y = static_cast<std::uint32_t>(
+                (index / point_dimensions[0]) % point_dimensions[1]);
+            const std::uint32_t z = static_cast<std::uint32_t>(
+                index / (static_cast<std::size_t>(point_dimensions[0]) * point_dimensions[1]));
             const Vec3 point = regular_position(
                 data.info.domain, resolution, x, y, z, false);
             data.coefficients[grid_point_index(x, y, z, point_dimensions)] =
                 data.exact_surface->query(point).phi;
-        }
+        });
     }
     else
     {
@@ -238,16 +315,18 @@ void build_dense(detail::AssetData& data, const BuildOptions& options)
         const double step = options.derivative_step > 0.0
             ? options.derivative_step
             : std::max(1.0e-7, std::min({cell_size.x, cell_size.y, cell_size.z}) * 0.25);
-        for (std::uint32_t z = 0; z < point_dimensions[2]; ++z)
-        for (std::uint32_t y = 0; y < point_dimensions[1]; ++y)
-        for (std::uint32_t x = 0; x < point_dimensions[0]; ++x)
-        {
+        deterministic_parallel_for(point_count, options.worker_threads, [&](std::size_t index) {
+            const std::uint32_t x = static_cast<std::uint32_t>(index % point_dimensions[0]);
+            const std::uint32_t y = static_cast<std::uint32_t>(
+                (index / point_dimensions[0]) % point_dimensions[1]);
+            const std::uint32_t z = static_cast<std::uint32_t>(
+                index / (static_cast<std::size_t>(point_dimensions[0]) * point_dimensions[1]));
             const Vec3 point = regular_position(
                 data.info.domain, resolution, x, y, z, false);
             const auto jet = detail::tricubic_point_jet(*data.exact_surface, point, step);
             const std::size_t offset = 8 * grid_point_index(x, y, z, point_dimensions);
             std::copy(jet.begin(), jet.end(), data.coefficients.begin() + offset);
-        }
+        });
     }
     data.info.coefficient_count = data.coefficients.size();
 }
@@ -272,10 +351,13 @@ void build_exact_node(
         return;
     }
 
-    for (std::size_t child = 0; child < 8; ++child)
+    std::array<std::vector<std::uint32_t>, 8> child_candidates;
+    const std::uint32_t filter_workers = node_copy.depth < 2
+        ? options.worker_threads : 1u;
+    deterministic_parallel_for(8, filter_workers, [&](std::size_t child)
     {
         const Aabb box = child_box(node_copy.box, child);
-        std::vector<std::uint32_t> filtered;
+        std::vector<std::uint32_t>& filtered = child_candidates[child];
         filtered.reserve(candidates.size());
         if (options.influence_filter == InfluenceFilter::AabbLipschitz)
         {
@@ -345,13 +427,18 @@ void build_exact_node(
         {
             filtered = candidates;
         }
+    });
+    for (std::size_t child = 0; child < 8; ++child)
+    {
+        const Aabb box = child_box(node_copy.box, child);
         const std::int32_t child_index = static_cast<std::int32_t>(data.nodes.size());
         data.nodes[static_cast<std::size_t>(node_index)].child[child] = child_index;
         detail::Node child_node;
         child_node.box = box;
         child_node.depth = node_copy.depth + 1;
         data.nodes.push_back(child_node);
-        build_exact_node(data, options, child_index, std::move(filtered));
+        build_exact_node(
+            data, options, child_index, std::move(child_candidates[child]));
     }
 }
 
@@ -563,10 +650,16 @@ void build_adaptive_octree(detail::AssetData& data, const BuildOptions& options)
         impose_adaptive_vertex_constraints(data);
         std::vector<std::size_t> refine;
         double maximum_error = 0.0;
-        for (const std::size_t leaf : adaptive_leaves(data))
+        const std::vector<std::size_t> leaves = adaptive_leaves(data);
+        std::vector<ErrorMeasurement> measurements(leaves.size());
+        deterministic_parallel_for(leaves.size(), options.worker_threads, [&](std::size_t index) {
+            measurements[index] = measure_node_error(data, leaves[index]);
+        });
+        for (std::size_t index = 0; index < leaves.size(); ++index)
         {
+            const std::size_t leaf = leaves[index];
             detail::Node& node = data.nodes[leaf];
-            const ErrorMeasurement measurement = measure_node_error(data, leaf);
+            const ErrorMeasurement measurement = measurements[index];
             node.measured_error = measurement.maximum;
             maximum_error = std::max(maximum_error, node.measured_error);
             if (node.depth < options.start_depth ||
@@ -725,14 +818,51 @@ QueryResult Asset::query(Vec3 point) const
 
 void Asset::query_batch(const Vec3* points, std::size_t count, QueryResult* out) const
 {
+    query_batch(points, count, out, BatchQueryOptions{});
+}
+
+void Asset::query_batch(
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out,
+    const BatchQueryOptions& options) const
+{
     if ((count != 0 && (!points || !out)) || !impl_ || !impl_->data)
     {
         throw std::invalid_argument("invalid batch query arguments or empty asset");
     }
-    for (std::size_t i = 0; i < count; ++i)
+    if (options.worker_threads == 0)
+    {
+        throw std::invalid_argument("batch worker thread count must be positive");
+    }
+    if (options.backend == BatchBackend::CudaExperimental)
+    {
+        if (options.worker_threads != 1)
+            throw std::invalid_argument(
+                "experimental CUDA query uses one host submission thread");
+        (void)detail::query_batch_cuda(*impl_->data, points, count, out);
+        return;
+    }
+    if (options.backend == BatchBackend::AutoSimd)
+    {
+        if (options.worker_threads == 1 &&
+            detail::query_batch_simd(*impl_->data, points, count, out))
+            return;
+        deterministic_parallel_for(count, options.worker_threads, [&](std::size_t i)
+        {
+            if (!detail::query_batch_simd(*impl_->data, points + i, 1, out + i))
+                out[i] = detail::query_asset(*impl_->data, points[i]);
+        });
+        return;
+    }
+    if (options.backend != BatchBackend::Scalar)
+    {
+        throw std::invalid_argument("unknown batch query backend");
+    }
+    deterministic_parallel_for(count, options.worker_threads, [&](std::size_t i)
     {
         out[i] = detail::query_asset(*impl_->data, points[i]);
-    }
+    });
 }
 
 void Asset::save(const std::string& path) const
@@ -754,6 +884,11 @@ Asset build(const SurfaceMesh& mesh, const BuildOptions& options)
     return Asset(std::make_shared<Asset::Impl>(detail::build_asset_data(mesh, options)));
 }
 
+bool is_cuda_backend_available() noexcept
+{
+    return detail::cuda_backend_available();
+}
+
 namespace detail
 {
 
@@ -769,6 +904,8 @@ std::shared_ptr<const AssetData> build_asset_data(
     data->info.reconstruction = options.reconstruction;
     data->info.influence_filter = options.influence_filter;
     data->info.composition = options.composition;
+    data->info.build_backend = options.backend;
+    data->info.worker_threads = options.worker_threads;
     data->info.component_count = static_cast<std::uint32_t>(
         data->exact_surface->component_count());
     data->info.active_component_count = static_cast<std::uint32_t>(
@@ -783,7 +920,10 @@ std::shared_ptr<const AssetData> build_asset_data(
     switch (options.representation)
     {
     case Representation::DenseGrid:
-        build_dense(*data, options);
+        if (options.backend == ComputeBackend::CudaExperimental)
+            build_dense_cuda(*data, options);
+        else
+            build_dense(*data, options);
         break;
     case Representation::ExactInfluenceOctree:
         build_exact_octree(*data, options);
@@ -1168,6 +1308,11 @@ void save_asset(const AssetData& data, const std::string& path)
         writer.u32(data.info.component_count);
         writer.u32(data.info.active_component_count);
     }
+    if (data.info.format_minor >= 3)
+    {
+        writer.u32(static_cast<std::uint32_t>(data.info.build_backend));
+        writer.u32(data.info.worker_threads);
+    }
     writer.box(data.info.domain);
     for (const std::uint32_t value : data.info.resolution) writer.u32(value);
     writer.u32(data.info.maximum_depth);
@@ -1269,7 +1414,7 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
     auto data = std::make_shared<AssetData>();
     data->info.format_major = reader.u32("format major");
     data->info.format_minor = reader.u32("format minor");
-    if (data->info.format_major != 1 || data->info.format_minor > 2)
+    if (data->info.format_major != 1 || data->info.format_minor > 3)
     {
         throw std::runtime_error("unsupported NSDF major version");
     }
@@ -1284,6 +1429,19 @@ std::shared_ptr<const AssetData> load_asset(const std::string& path)
             reader.u32("composition policy"));
         data->info.component_count = reader.u32("component count");
         data->info.active_component_count = reader.u32("active component count");
+    }
+    if (data->info.format_minor >= 3)
+    {
+        data->info.build_backend = static_cast<ComputeBackend>(
+            reader.u32("build backend"));
+        data->info.worker_threads = reader.u32("worker threads");
+    }
+    if ((data->info.build_backend != ComputeBackend::CpuScalar &&
+         data->info.build_backend != ComputeBackend::CpuParallel &&
+         data->info.build_backend != ComputeBackend::CudaExperimental) ||
+        data->info.worker_threads == 0)
+    {
+        throw std::runtime_error("NSDF build backend metadata is invalid");
     }
     data->info.domain = reader.box("domain");
     for (std::uint32_t& value : data->info.resolution) value = reader.u32("resolution");

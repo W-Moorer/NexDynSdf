@@ -53,11 +53,16 @@ int main()
     }
 
     std::vector<double> bvh(sample_count);
+    std::vector<nexsdf::QueryResult> batch(sample_count);
     std::vector<double> exhaustive(sample_count);
     const auto bvh_begin = std::chrono::steady_clock::now();
     for (std::size_t i = 0; i < sample_count; ++i)
         bvh[i] = surface.query(points[i]).phi;
     const auto bvh_end = std::chrono::steady_clock::now();
+
+    const auto batch_begin = std::chrono::steady_clock::now();
+    surface.query_batch(points.data(), points.size(), batch.data());
+    const auto batch_end = std::chrono::steady_clock::now();
 
     const auto exhaustive_begin = std::chrono::steady_clock::now();
     for (std::size_t i = 0; i < sample_count; ++i)
@@ -66,7 +71,10 @@ int main()
 
     double maximum_error = 0.0;
     for (std::size_t i = 0; i < sample_count; ++i)
+    {
         maximum_error = std::max(maximum_error, std::abs(bvh[i] - exhaustive[i]));
+        maximum_error = std::max(maximum_error, std::abs(batch[i].phi - exhaustive[i]));
+    }
     if (maximum_error > 1.0e-12)
     {
         std::cerr << "BVH/exhaustive maximum error=" << maximum_error << '\n';
@@ -74,12 +82,16 @@ int main()
     }
 
     const double bvh_seconds = seconds(bvh_end - bvh_begin);
+    const double batch_seconds = seconds(batch_end - batch_begin);
     const double exhaustive_seconds = seconds(exhaustive_end - exhaustive_begin);
     std::cout << "model_triangles=" << mesh.triangles.size()
               << " samples=" << sample_count
               << " max_error=" << maximum_error
               << " bvh_seconds=" << bvh_seconds
+              << " batch_seconds=" << batch_seconds
               << " exhaustive_seconds=" << exhaustive_seconds
-              << " speedup=" << exhaustive_seconds / bvh_seconds << '\n';
+              << " bvh_speedup=" << exhaustive_seconds / bvh_seconds
+              << " batch_speedup=" << exhaustive_seconds / batch_seconds
+              << " batch_vs_scalar=" << bvh_seconds / batch_seconds << '\n';
     return 0;
 }

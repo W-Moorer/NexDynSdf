@@ -12,9 +12,9 @@
   exhaustive scan at 257 deterministic points.
 - `integration`: generates a real `.nsdf` and validates all five headless
   visualization output modes.
-- `benchmark`: Gear exact-surface BVH against exhaustive triangle queries;
-  numerical equality is required, speed is reported without a machine-specific
-  threshold.
+- `benchmark`: Gear scalar and SIMD-friendly batch exact-surface BVH against
+  exhaustive triangle queries; numerical equality is required, speed is
+  reported without a machine-specific threshold.
 
 ## Commands
 
@@ -25,6 +25,8 @@ scripts/verify_install.ps1 -Configuration Release
 ctest --test-dir build-test-static-final -C Release -L integration --output-on-failure
 ctest --test-dir build -C Release -L benchmark --output-on-failure -V
 scripts/run_validation_matrix.ps1 -Profile Smoke -Configuration Release
+scripts/run_backend_comparison.ps1 -Configuration Release -Threads 8
+scripts/run_backend_comparison.ps1 -Configuration Release -Cuda
 ```
 
 ## Quantitative field and surface protocol
@@ -56,6 +58,30 @@ symmetric surface error.
 
 These host-specific observations are not pass thresholds. They expose the
 offline-build versus runtime-size/query tradeoff.
+
+## CPU and optional CUDA backend protocol
+
+The backend comparison uses the same M0 schema and records both build and query
+backend/worker counts (`nexsdf-validation-v3`). Scalar and deterministic parallel CPU builds must
+preserve exact-octree topology and query identity; dense scalar/parallel output
+must be bitwise equal. The auto-SIMD dense-trilinear path has explicit scalar
+and gradient tolerances. The optional CUDA integration test uses double
+precision and a 1,024-point budget of `2e-12` for phi and `2e-11` for gradient.
+CUDA timing includes allocation, host/device transfer, and kernel execution.
+
+Host observation for the 32-cubed cube case (4,096 points, 20 repetitions,
+MSVC Release, Ryzen 9 5900X, RTX 3070) showed CPU scalar build `0.055-0.070 s`,
+8-thread CPU build `0.013-0.021 s`, and CUDA build `0.142 s`. Query observations
+were `4.83-5.59 M/s` scalar, `5.64-7.18 M/s` for the 8-thread scalar kernel,
+`7.30-7.92 M/s` auto-SIMD, and `2.82 M/s` CUDA with allocation and transfer
+included. All four paths returned the same validation errors. Repeated runs
+vary; these are observations, not acceptance thresholds.
+
+On the documented Windows/MSVC host, ThreadSanitizer is unavailable. The
+regression therefore exercises fixed partitions repeatedly, checks serialized
+shape and per-query identity, and relies on disjoint output ownership plus
+exception-safe joins; a sanitizer run remains required on a supported
+Clang/Linux CI host before promoting parallel mode from opt-in to the default.
 
 ## Model collection
 
@@ -95,6 +121,7 @@ Date: 2026-08-13.
 
 Sources: `CMakeLists.txt`, `scripts/run_tests.ps1`,
 `scripts/verify_install.ps1`, `scripts/run_validation_matrix.ps1`,
+`scripts/run_backend_comparison.ps1`,
 `tools/nexsdfvalidate.cpp`, `models/MANIFEST.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
@@ -102,29 +129,33 @@ Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
 `tests/visualization_smoke.cmake`,
 `tests/validation_smoke.cmake`,
 `tests/influence_tests.cpp`,
-`tests/benchmark_exact.cpp`.
+`tests/benchmark_exact.cpp`, `tests/cuda_tests.cpp`.
 
 Results recorded before documentation finalization:
 
 - Release static `unit`: passed (2 tests).
-- Release static `regression`: passed (2 tests, including the complete model
+- Release static `regression`: passed (4 tests, including the complete model
   catalog audit).
 - Release static `integration`: passed (1 test).
 - Release shared `unit`: passed (2 tests).
-- Release shared `regression`: passed (2 tests, including the complete model
+- Release shared `regression`: passed (4 tests, including the complete model
   catalog audit).
 - Release shared `integration`: passed (1 test).
 - Installed-package consumer: passed.
+- Optional CUDA `gpu;integration`: passed (1 test).
+- SIMD-disabled Release unit/regression suites: passed.
 
 The final benchmark measurement is appended after the final benchmark run.
 
 Final benchmark observation on this host:
 
 - SdfLib Gear fixture: 6,882 triangles, 1,024 deterministic query points.
-- BVH versus exhaustive maximum scalar error: `0`.
-- BVH time: `0.0102879 s`; exhaustive time: `0.498422 s`.
-- Observed speedup: `48.4474x`. This is an observation, not a pass threshold or
-  a portable performance guarantee.
+- Scalar and SIMD-friendly batch BVH versus exhaustive maximum error: `0`.
+- Scalar BVH: `0.0059261 s`; batch BVH: `0.0070203 s`; exhaustive:
+  `0.276218 s`.
+- Observed scalar/exhaustive speedup: `46.6105x`; observed batch/exhaustive
+  speedup: `39.3457x`. These are observations, not pass thresholds or portable
+  performance guarantees.
 
 Final CLI smoke checks generated, loaded, and queried dense trilinear,
 adaptive tricubic NSM, and exact influence octree assets successfully.
