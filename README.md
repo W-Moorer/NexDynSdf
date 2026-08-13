@@ -61,8 +61,12 @@ measurements with reproducibility metadata. See
 [`docs/validation.md`](docs/validation.md) for the exact sampling policy and
 the 32/64/128/256 matrix command.
 
-The project accepts triangulated or polygonal OBJ files and NSM v1 binary mesh
-files containing per-triangle face identifiers and per-corner normals.
+The project accepts triangulated or polygonal OBJ, little-endian NSM v1 with
+face identifiers/per-corner normals, and strict ASCII or binary STL. STL facet
+normals orient individual facets when valid; exact duplicate coordinates are
+welded deterministically before the same topology checks used by other inputs.
+ENG v1 can be loaded and validated only beside its associated NSM because it
+contains crease coefficients but no surface geometry.
 Disconnected shells may be built only with an explicit solid-union or
 nested-parity policy; intersecting or touching shells fail closed.
 
@@ -117,8 +121,8 @@ All example and validation models are consolidated under [`models/`](models/):
 | `models/sdfmodel/` | generated cam, gear, coarse/fine validation NSM and cam STL | repository owner's prior first-party work; no separate license file |
 | `models/sdflib/` | Gear OBJ | third-party SdfLib model; MIT license retained |
 
-The catalog currently contains 34 assets: 32 OBJ/NSM parser inputs and two
-auxiliary source/cache files. All 32 OBJ/NSM files parse successfully; 29 pass
+The catalog currently contains 34 assets: 33 OBJ/NSM/STL mesh inputs and one
+ENG sidecar. All 33 mesh files parse successfully; 32 pass
 the default `SeparateAssets` signed-distance policy. Multi-component models can
 be built only after the caller explicitly selects union or parity. See
 [`models/MANIFEST.md`](models/MANIFEST.md), the machine-readable
@@ -130,10 +134,9 @@ Cam assets are available directly at:
 
 - `models/pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj`: closed
   single-component OBJ and ready for SDF generation;
-- `models/sdfmodel/cam.nsm`: retained experimental NSM with known
-  boundary/non-manifold topology;
-- `models/sdfmodel/cam.stl`: retained generated STL source output; STL import
-  is not currently part of NexDynSdf.
+- `models/sdfmodel/cam.nsm`: reproducibly generated, topology-valid NSM with
+  stable surface face IDs and smooth side corner normals;
+- `models/sdfmodel/cam.stl`: the equivalent supported binary STL input.
 
 ## Build
 
@@ -176,11 +179,12 @@ scripts/generate_readme_images.ps1 -Configuration Release
 `nexsdfviz` supports `distance`, `normal`, `gradient-error`, `depth`, and
 `error` modes. It is an offline tool and is not part of the runtime ABI.
 
-Audit the complete OBJ/NSM catalog through the production import and topology
+Audit the complete mesh catalog through the production import and topology
 code:
 
 ```powershell
-build/Release/nexsdfmodelaudit.exe models --expect-files 32 --expect-ready 29
+build/Release/nexsdfmodelaudit.exe models --expect-files 33 --expect-ready 32
+python scripts/regenerate_reference_models.py --output-dir models/sdfmodel --check
 scripts/update_model_catalog.ps1  # verifies source hashes and rewrites CATALOG.tsv
 scripts/update_model_audit.ps1    # rewrites AUDIT.tsv through production loaders
 ```

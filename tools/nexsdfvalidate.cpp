@@ -395,11 +395,7 @@ int main(int argc, char** argv)
             else throw std::invalid_argument("unknown option: " + option);
         }
 
-        const std::string extension = lower(std::filesystem::path(input_path).extension().string());
-        nexsdf::SurfaceMesh mesh;
-        if (extension == ".obj") mesh = nexsdf::load_obj(input_path);
-        else if (extension == ".nsm") mesh = nexsdf::load_nsm_v1(input_path);
-        else throw std::invalid_argument("input extension must be .obj or .nsm");
+        nexsdf::SurfaceMesh mesh = nexsdf::load_surface_mesh(input_path);
 
         nexsdf::ExactSurface exact(mesh, options.build.composition);
         const auto start = Clock::now();

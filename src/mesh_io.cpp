@@ -6,11 +6,15 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace nexsdf
@@ -135,6 +139,199 @@ void require_reasonable_count(std::uint32_t count, const char* label)
     {
         throw std::runtime_error(std::string("invalid NSM ") + label + " count");
     }
+}
+
+std::string lower(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return value;
+}
+
+std::uint32_t u32_at(const std::vector<std::uint8_t>& bytes, std::size_t offset)
+{
+    if (offset > bytes.size() || bytes.size() - offset < 4)
+    {
+        throw std::runtime_error("truncated binary data");
+    }
+    return static_cast<std::uint32_t>(bytes[offset]) |
+        (static_cast<std::uint32_t>(bytes[offset + 1]) << 8u) |
+        (static_cast<std::uint32_t>(bytes[offset + 2]) << 16u) |
+        (static_cast<std::uint32_t>(bytes[offset + 3]) << 24u);
+}
+
+float f32_at(const std::vector<std::uint8_t>& bytes, std::size_t offset)
+{
+    const std::uint32_t bits = u32_at(bytes, offset);
+    float value = 0.0F;
+    static_assert(sizeof(value) == sizeof(bits), "unexpected float size");
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+class StlBuilder
+{
+public:
+    explicit StlBuilder(std::string path)
+    {
+        mesh_.source_path = std::move(path);
+    }
+
+    void add(Vec3 supplied_normal, const std::array<Vec3, 3>& positions)
+    {
+        for (const Vec3 point : positions)
+        {
+            if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                !std::isfinite(point.z))
+            {
+                throw std::runtime_error("STL contains a non-finite vertex");
+            }
+        }
+        const Vec3 geometric = cross(
+            positions[1] - positions[0], positions[2] - positions[0]);
+        if (!(norm(geometric) > 1.0e-14))
+        {
+            throw std::runtime_error("STL contains a degenerate triangle");
+        }
+
+        Triangle triangle;
+        triangle.face_id = static_cast<std::uint32_t>(mesh_.triangles.size());
+        for (std::size_t corner = 0; corner < 3; ++corner)
+        {
+            const Vec3 point = positions[corner];
+            const auto key = std::make_tuple(point.x, point.y, point.z);
+            const auto [entry, inserted] = vertices_.emplace(
+                key, static_cast<std::uint32_t>(mesh_.vertices.size()));
+            if (inserted)
+            {
+                mesh_.vertices.push_back(point);
+            }
+            triangle.vertex[corner] = entry->second;
+        }
+
+        if (std::isfinite(supplied_normal.x) &&
+            std::isfinite(supplied_normal.y) &&
+            std::isfinite(supplied_normal.z) &&
+            norm(supplied_normal) > 1.0e-14 &&
+            dot(geometric, supplied_normal) < 0.0)
+        {
+            std::swap(triangle.vertex[1], triangle.vertex[2]);
+        }
+        mesh_.triangles.push_back(triangle);
+    }
+
+    SurfaceMesh finish()
+    {
+        if (mesh_.triangles.empty())
+        {
+            throw std::runtime_error("STL contains no triangles");
+        }
+        return std::move(mesh_);
+    }
+
+private:
+    SurfaceMesh mesh_;
+    std::map<std::tuple<double, double, double>, std::uint32_t> vertices_;
+};
+
+void require_token(
+    std::istream& input,
+    const std::string& expected,
+    const std::string& path)
+{
+    std::string token;
+    if (!(input >> token) || lower(token) != expected)
+    {
+        throw std::runtime_error(
+            "malformed ASCII STL (expected " + expected + "): " + path);
+    }
+}
+
+SurfaceMesh load_ascii_stl(const std::string& path)
+{
+    std::ifstream input(path);
+    if (!input)
+    {
+        throw std::runtime_error("cannot open STL file: " + path);
+    }
+    require_token(input, "solid", path);
+    std::string ignored_name;
+    std::getline(input, ignored_name);
+
+    StlBuilder builder(path);
+    std::string token;
+    while (input >> token)
+    {
+        token = lower(token);
+        if (token == "endsolid")
+        {
+            std::getline(input, ignored_name);
+            std::string trailing;
+            if (input >> trailing)
+            {
+                throw std::runtime_error("ASCII STL contains trailing tokens: " + path);
+            }
+            return builder.finish();
+        }
+        if (token != "facet")
+        {
+            throw std::runtime_error("malformed ASCII STL (expected facet): " + path);
+        }
+        require_token(input, "normal", path);
+        Vec3 normal;
+        if (!(input >> normal.x >> normal.y >> normal.z))
+        {
+            throw std::runtime_error("malformed ASCII STL facet normal: " + path);
+        }
+        require_token(input, "outer", path);
+        require_token(input, "loop", path);
+        std::array<Vec3, 3> positions{};
+        for (Vec3& point : positions)
+        {
+            require_token(input, "vertex", path);
+            if (!(input >> point.x >> point.y >> point.z))
+            {
+                throw std::runtime_error("malformed ASCII STL vertex: " + path);
+            }
+        }
+        require_token(input, "endloop", path);
+        require_token(input, "endfacet", path);
+        builder.add(normal, positions);
+    }
+    throw std::runtime_error("ASCII STL is missing endsolid: " + path);
+}
+
+SurfaceMesh load_binary_stl(
+    const std::string& path,
+    const std::vector<std::uint8_t>& bytes,
+    std::uint32_t triangle_count)
+{
+    if (triangle_count == 0 || triangle_count > 100000000u)
+    {
+        throw std::runtime_error("invalid binary STL triangle count");
+    }
+    StlBuilder builder(path);
+    std::size_t offset = 84;
+    for (std::uint32_t triangle = 0; triangle < triangle_count; ++triangle)
+    {
+        const Vec3 normal{
+            static_cast<double>(f32_at(bytes, offset)),
+            static_cast<double>(f32_at(bytes, offset + 4)),
+            static_cast<double>(f32_at(bytes, offset + 8))};
+        offset += 12;
+        std::array<Vec3, 3> positions{};
+        for (Vec3& point : positions)
+        {
+            point = {
+                static_cast<double>(f32_at(bytes, offset)),
+                static_cast<double>(f32_at(bytes, offset + 4)),
+                static_cast<double>(f32_at(bytes, offset + 8))};
+            offset += 12;
+        }
+        offset += 2; // Attribute byte count is intentionally ignored.
+        builder.add(normal, positions);
+    }
+    return builder.finish();
 }
 
 } // namespace
@@ -317,6 +514,135 @@ SurfaceMesh load_nsm_v1(const std::string& path)
         throw std::runtime_error("NSM file contains unexpected trailing bytes");
     }
     return mesh;
+}
+
+SurfaceMesh load_stl(const std::string& path)
+{
+    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    if (!input)
+    {
+        throw std::runtime_error("cannot open STL file: " + path);
+    }
+    const std::streamoff end = input.tellg();
+    if (end < 0)
+    {
+        throw std::runtime_error("cannot determine STL file size: " + path);
+    }
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(end));
+    input.seekg(0);
+    input.read(reinterpret_cast<char*>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    if (!input && !bytes.empty())
+    {
+        throw std::runtime_error("cannot read STL file: " + path);
+    }
+
+    if (bytes.size() >= 84)
+    {
+        const std::uint32_t count = u32_at(bytes, 80);
+        const std::uint64_t expected = 84ull + 50ull * count;
+        if (expected == bytes.size())
+        {
+            return load_binary_stl(path, bytes, count);
+        }
+    }
+    return load_ascii_stl(path);
+}
+
+SurfaceMesh load_surface_mesh(const std::string& path)
+{
+    const std::string extension = lower(
+        std::filesystem::path(path).extension().string());
+    if (extension == ".obj") return load_obj(path);
+    if (extension == ".nsm") return load_nsm_v1(path);
+    if (extension == ".stl") return load_stl(path);
+    throw std::invalid_argument(
+        "unsupported mesh extension (expected .obj, .nsm, or .stl): " + path);
+}
+
+std::vector<CreaseEdge> load_eng_v1(
+    const std::string& path,
+    const SurfaceMesh& associated_mesh)
+{
+    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    if (!input)
+    {
+        throw std::runtime_error("cannot open ENG file: " + path);
+    }
+    const std::streamoff end = input.tellg();
+    if (end < 16)
+    {
+        throw std::runtime_error("truncated ENG v1 header: " + path);
+    }
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(end));
+    input.seekg(0);
+    input.read(reinterpret_cast<char*>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    if (!input || std::memcmp(bytes.data(), "ENG\0", 4) != 0)
+    {
+        throw std::runtime_error("invalid ENG v1 header: " + path);
+    }
+    const std::uint32_t version = u32_at(bytes, 4);
+    const std::uint32_t edge_count = u32_at(bytes, 8);
+    const std::uint32_t reserved = u32_at(bytes, 12);
+    if (version != 1)
+    {
+        throw std::runtime_error("unsupported ENG version: " + std::to_string(version));
+    }
+    if (reserved != 0 || edge_count > 100000000u ||
+        16ull + 20ull * edge_count != bytes.size())
+    {
+        throw std::runtime_error("invalid ENG v1 payload size or reserved field");
+    }
+
+    std::set<std::array<std::uint32_t, 2>> mesh_edges;
+    for (const Triangle& triangle : associated_mesh.triangles)
+    {
+        for (std::size_t edge = 0; edge < 3; ++edge)
+        {
+            std::array<std::uint32_t, 2> key{
+                triangle.vertex[edge], triangle.vertex[(edge + 1) % 3]};
+            if (key[0] > key[1]) std::swap(key[0], key[1]);
+            mesh_edges.insert(key);
+        }
+    }
+
+    std::vector<CreaseEdge> result;
+    result.reserve(edge_count);
+    std::set<std::array<std::uint32_t, 2>> seen;
+    std::size_t offset = 16;
+    for (std::uint32_t index = 0; index < edge_count; ++index)
+    {
+        CreaseEdge crease;
+        crease.vertex = {u32_at(bytes, offset), u32_at(bytes, offset + 4)};
+        crease.c_sharp = {
+            static_cast<double>(f32_at(bytes, offset + 8)),
+            static_cast<double>(f32_at(bytes, offset + 12)),
+            static_cast<double>(f32_at(bytes, offset + 16))};
+        offset += 20;
+        if (crease.vertex[0] >= associated_mesh.vertices.size() ||
+            crease.vertex[1] >= associated_mesh.vertices.size() ||
+            crease.vertex[0] >= crease.vertex[1])
+        {
+            throw std::runtime_error("ENG edge has invalid or unsorted vertex indices");
+        }
+        if (!std::isfinite(crease.c_sharp.x) ||
+            !std::isfinite(crease.c_sharp.y) ||
+            !std::isfinite(crease.c_sharp.z))
+        {
+            throw std::runtime_error("ENG contains a non-finite c_sharp vector");
+        }
+        if (mesh_edges.count(crease.vertex) == 0)
+        {
+            throw std::runtime_error("ENG edge does not exist in the associated mesh");
+        }
+        if (!seen.insert(crease.vertex).second)
+        {
+            throw std::runtime_error("ENG contains a duplicate crease edge");
+        }
+        result.push_back(crease);
+    }
+    return result;
 }
 
 } // namespace nexsdf

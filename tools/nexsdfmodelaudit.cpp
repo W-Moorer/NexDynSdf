@@ -96,10 +96,8 @@ AuditRow audit(const std::filesystem::path& root, const std::filesystem::path& p
     AuditRow row;
     row.path = std::filesystem::relative(path, root);
     const std::string extension = lower(path.extension().string());
-    row.format = extension == ".obj" ? "obj" : "nsm";
-    nexsdf::SurfaceMesh mesh = extension == ".obj"
-        ? nexsdf::load_obj(path.string())
-        : nexsdf::load_nsm_v1(path.string());
+    row.format = extension.substr(1);
+    nexsdf::SurfaceMesh mesh = nexsdf::load_surface_mesh(path.string());
     row.vertices = mesh.vertices.size();
     row.triangles = mesh.triangles.size();
     row.corner_normals = !mesh.triangles.empty()
@@ -139,7 +137,8 @@ int main(int argc, char** argv)
         {
             if (!entry.is_regular_file()) continue;
             const std::string extension = lower(entry.path().extension().string());
-            if (extension == ".obj" || extension == ".nsm") paths.push_back(entry.path());
+            if (extension == ".obj" || extension == ".nsm" || extension == ".stl")
+                paths.push_back(entry.path());
         }
         std::sort(paths.begin(), paths.end());
 

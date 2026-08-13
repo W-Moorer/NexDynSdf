@@ -57,6 +57,12 @@ struct SurfaceMesh
     std::string source_path;
 };
 
+struct CreaseEdge
+{
+    std::array<std::uint32_t, 2> vertex{};
+    Vec3 c_sharp{};
+};
+
 enum class Feature : std::uint32_t
 {
     Unknown = 0,
@@ -182,6 +188,11 @@ struct AssetInfo
 
 NEXSDF_API SurfaceMesh load_obj(const std::string& path);
 NEXSDF_API SurfaceMesh load_nsm_v1(const std::string& path);
+NEXSDF_API SurfaceMesh load_stl(const std::string& path);
+NEXSDF_API SurfaceMesh load_surface_mesh(const std::string& path);
+NEXSDF_API std::vector<CreaseEdge> load_eng_v1(
+    const std::string& path,
+    const SurfaceMesh& associated_mesh);
 NEXSDF_API MeshValidation validate_mesh(const SurfaceMesh& mesh);
 
 class NEXSDF_API ExactSurface

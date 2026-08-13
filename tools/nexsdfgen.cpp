@@ -14,7 +14,7 @@ namespace
 
 void usage()
 {
-    std::cerr << "usage: nexsdfgen INPUT.(obj|nsm) OUTPUT.nsdf [options]\n"
+    std::cerr << "usage: nexsdfgen INPUT.(obj|nsm|stl) OUTPUT.nsdf [options]\n"
               << "  --representation grid|exact-octree|adaptive-octree\n"
               << "  --reconstruction trilinear|tricubic|gradient|exact\n"
               << "  --resolution N  --max-depth N  --start-depth N\n"
@@ -124,12 +124,8 @@ int main(int argc, char** argv)
             else throw std::invalid_argument("unknown option: " + option);
         }
 
-        const std::string extension = lower(std::filesystem::path(input_path).extension().string());
-        nexsdf::SurfaceMesh mesh;
         stage("load mesh");
-        if (extension == ".obj") mesh = nexsdf::load_obj(input_path);
-        else if (extension == ".nsm") mesh = nexsdf::load_nsm_v1(input_path);
-        else throw std::invalid_argument("input extension must be .obj or .nsm");
+        nexsdf::SurfaceMesh mesh = nexsdf::load_surface_mesh(input_path);
 
         stage("validate mesh");
         stage("build asset");

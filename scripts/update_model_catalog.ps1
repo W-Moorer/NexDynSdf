@@ -58,6 +58,27 @@ function Add-Asset(
     })
 }
 
+function Add-SelfGeneratedAsset([string]$CatalogPath, [string]$SourcePath) {
+    $catalogFile = Join-Path $modelRoot ($CatalogPath -replace '/', '\')
+    if (-not (Test-Path -LiteralPath $catalogFile -PathType Leaf)) {
+        throw "Generated catalog asset is missing: $CatalogPath"
+    }
+    $catalogHash = (Get-FileHash -LiteralPath $catalogFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    $rows.Add([pscustomobject]@{
+        path = $CatalogPath
+        format = [IO.Path]::GetExtension($catalogFile).TrimStart('.').ToLowerInvariant()
+        nexsdf_input = 'yes'
+        ownership = 'first-party'
+        license = 'no separate model license'
+        source_project = 'NexDynSdf'
+        source_revision = 'nexsdf-reference-models-v1'
+        source_state = 'generated-reproducible'
+        source_path = $SourcePath
+        sha256 = $catalogHash
+        bytes = (Get-Item -LiteralPath $catalogFile).Length
+    })
+}
+
 $pycocoRevision = Get-Revision $PyCoCoRoot
 $nagataRevision = Get-Revision $NagataRoot
 $sdfModelRevision = Get-Revision $SdfModelRoot
@@ -83,9 +104,17 @@ Add-Asset 'nagata/cone.eng' 'enhanced-nagata-sdf' $nagataRevision 'ignored-local
     'models/cone.eng' (Join-Path $NagataRoot 'models/cone.eng') `
     'first-party' 'no separate model license' $false
 
+$regenerator = Join-Path $repository 'scripts/regenerate_reference_models.py'
+& python $regenerator --output-dir (Join-Path $modelRoot 'sdfmodel') --check
+if ($LASTEXITCODE -ne 0) { throw 'Generated cam/gear models are stale.' }
+Add-SelfGeneratedAsset 'sdfmodel/cam.nsm' `
+    'scripts/regenerate_reference_models.py --output-dir models/sdfmodel'
+Add-SelfGeneratedAsset 'sdfmodel/cam.stl' `
+    'scripts/regenerate_reference_models.py --output-dir models/sdfmodel'
+Add-SelfGeneratedAsset 'sdfmodel/gear.nsm' `
+    'scripts/regenerate_reference_models.py --output-dir models/sdfmodel'
+
 $sdfModelAssets = @(
-    @('sdfmodel/cam.nsm', 'models/_mb_cam.nsm', 'experiments/multibody_benchmark.py -> enhanced-nagata-sdf/models/_mb_cam.nsm'),
-    @('sdfmodel/gear.nsm', 'models/_mb_gear.nsm', 'experiments/multibody_benchmark.py -> enhanced-nagata-sdf/models/_mb_gear.nsm'),
     @('sdfmodel/validation_coarse.nsm', 'models/_val_coarse.nsm', 'experiments/nagata_eikonal_validation.py -> enhanced-nagata-sdf/models/_val_coarse.nsm'),
     @('sdfmodel/validation_fine.nsm', 'models/_val_fine.nsm', 'experiments/nagata_eikonal_validation.py -> enhanced-nagata-sdf/models/_val_fine.nsm')
 )
@@ -93,11 +122,6 @@ foreach ($asset in $sdfModelAssets) {
     Add-Asset $asset[0] 'SDFmodel' $sdfModelRevision 'generated-untracked' $asset[2] `
         (Join-Path $NagataRoot $asset[1]) 'first-party' 'no separate model license' $true
 }
-Add-Asset 'sdfmodel/cam.stl' 'SDFmodel' $sdfModelRevision 'generated-ignored' `
-    'experiments/mujoco_sdf_contact.py -> experiments/output/tmp/cam.stl' `
-    (Join-Path $SdfModelRoot 'experiments/output/tmp/cam.stl') `
-    'first-party' 'no separate model license' $false
-
 Add-Asset 'sdflib/Gear.obj' 'SdfLib' $sdfLibRevision 'ignored-local-model' `
     'models/Gear.obj' (Join-Path $SdfLibRoot 'models/Gear.obj') `
     'third-party' 'models/licenses/SdfLib-LICENSE.txt' $true

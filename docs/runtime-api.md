@@ -44,6 +44,11 @@ Imported corner normals are retained as mesh metadata in exact assets. They do
 not replace the SDF derivative. Exact sign and non-smooth feature handling use
 geometric face/edge/vertex pseudo-normals.
 
+Offline C++ import exposes `load_surface_mesh` for OBJ, NSM v1, and STL.
+`load_eng_v1(path, associated_mesh)` validates the complete ENG v1 payload,
+ordered unique edge keys, finite `c_sharp` vectors, and that every key is an
+edge of the associated mesh. ENG cannot be passed to `nexsdfgen` by itself.
+
 At medial axes or symmetric centers the SDF is not differentiable. Approximate
 reconstructions may return a zero raw gradient there; callers must not assume a
 unit normal exists merely because the scalar value is valid.

@@ -15,7 +15,7 @@ if (-not (Test-Path -LiteralPath $auditor -PathType Leaf)) {
 }
 
 $modelRoot = Join-Path $repository 'models'
-$lines = @(& $auditor $modelRoot --expect-files 32 --expect-ready 29)
+$lines = @(& $auditor $modelRoot --expect-files 33 --expect-ready 32)
 if ($LASTEXITCODE -ne 0) { throw 'Model audit failed.' }
 $content = ($lines -join "`n") + "`n"
 $auditPath = Join-Path $modelRoot 'AUDIT.tsv'

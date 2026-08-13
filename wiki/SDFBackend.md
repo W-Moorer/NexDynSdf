@@ -11,12 +11,13 @@ contact and solver code. NexDyn integration is intended to use the C ABI in
 Implemented representations are dense grids, conservative exact influence
 octrees, and adaptive piecewise polynomial octrees. Implemented
 reconstructions are trilinear, tricubic Hermite, and cell-centred Gradient
-Taylor. OBJ and little-endian NSM v1 imports are supported.
+Taylor. OBJ, little-endian NSM v1, and strict ASCII/binary STL imports are
+supported; ENG v1 is validated as an NSM-bound crease sidecar.
 
 ## Algorithm flow
 
 ```text
-OBJ / NSM v1
+OBJ / NSM v1 / STL
   -> exact duplicate-coordinate welding
   -> two-manifold/orientation validation
   -> per-component outward orientation
@@ -29,7 +30,7 @@ OBJ / NSM v1
 
 ## Important source files
 
-- `src/mesh_io.cpp`: OBJ and NSM v1 import.
+- `src/mesh_io.cpp`: OBJ, NSM v1, STL import and ENG v1 association checks.
 - `src/geometry.cpp`: validation, BVH, exact distance, pseudo-normal sign.
 - `src/influence.cpp`: Pujol-Chica sphere-hull support maps and conservative
   GJK/Frank-Wolfe intersection certificates.
@@ -49,8 +50,8 @@ OBJ / NSM v1
 scan, exact-octree conservation, reconstruction derivatives, adaptive
 coarse/fine continuity, serialization, corruption rejection, and C ABI status.
 `tests/model_tests.cpp` checks the core PyCoCo, SdfLib, and Nagata generation
-fixtures. `tests/model_catalog_smoke.cmake` additionally parses all 32 OBJ/NSM
-inputs, verifies the expected 29 runtime-ready assets, and checks all 34
+fixtures. `tests/model_catalog_smoke.cmake` additionally parses all 33 mesh
+inputs, verifies the expected 32 runtime-ready assets, and checks all 34
 catalog hashes and sizes. `tests/visualization_smoke.cmake` exercises all five
 visualization modes against a generated asset. `tests/influence_tests.cpp`
 compares all three filters with an exhaustive Gear scan at 257 deterministic
@@ -69,9 +70,10 @@ points and checks serialization.
 
 ## Planned work
 
-M0 quantitative validation, M1 paper-faithful GJK/Frank-Wolfe filtering, and M2
-explicit multi-shell/cavity composition are implemented. Remaining NSM/STL/ENG, CPU parallel/SIMD, and
-optional GPU work is maintained in `docs/roadmap.md`.
+M0 quantitative validation, M1 paper-faithful GJK/Frank-Wolfe filtering, M2
+explicit multi-shell/cavity composition, and M3 source-model/input-format work
+are implemented. CPU parallel/SIMD and optional GPU work remains in
+`docs/roadmap.md`.
 
 ## Last verified against
 
@@ -81,6 +83,7 @@ Sources: `src/geometry.cpp`, `src/influence.cpp`, `src/reconstruction.cpp`, `src
 `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
 `tools/nexsdfmodelaudit.cpp`, `scripts/generate_readme_images.ps1`,
 `scripts/update_model_catalog.ps1`, `scripts/update_model_audit.ps1`,
+`scripts/regenerate_reference_models.py`,
 `models/MANIFEST.md`, `docs/roadmap.md`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`, `tests/influence_tests.cpp`,

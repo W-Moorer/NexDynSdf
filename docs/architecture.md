@@ -10,7 +10,7 @@ NexDyn runtime use should load prebuilt assets through the C ABI.
 ## Main data flow
 
 ```text
-OBJ / NSM -> SurfaceMesh -> validation -> ExactSurface
+OBJ / NSM / STL -> SurfaceMesh -> validation -> ExactSurface
   -> grid / exact influence octree / adaptive octree
   -> versioned .nsdf -> C API / C++ wrapper -> NexDyn adapter
                   \-> nexsdfviz -> PPM -> standard-library PNG conversion
@@ -38,7 +38,7 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
 - Generation/import remain offline operations in the C++ API and CLI.
 - Visualization is a separate tool target. It uses batch public queries and is
   neither installed as nor linked into the runtime library.
-- `nexsdfmodelaudit` applies the production OBJ/NSM loaders, duplicate welding,
+- `nexsdfmodelaudit` applies the production OBJ/NSM/STL loaders, duplicate welding,
   and topology policy to every catalogued parser input; it does not implement a
   second permissive test-only loader.
 
@@ -47,8 +47,10 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
 - Input meshes must be finite, non-degenerate, closed, consistently oriented
   two-manifolds for signed queries.
 - OBJ material and texture payloads are ignored after index validation.
-- The exact influence filter is conservative but weaker than SdfLib's GJK
-  influence-region test.
+- STL attribute bytes are ignored; facet normals are advisory orientation data,
+  not query gradients or retained corner normals.
+- ENG has no standalone geometry and is accepted only as a validated sidecar
+  for an already loaded associated NSM mesh.
 - Multiple shells require an explicit solid-union or nested-parity build policy;
   intersecting/touching shells are rejected as ambiguous.
 - Gradient Taylor is intentionally discontinuous across cell boundaries.

@@ -84,7 +84,8 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
     add_executable(nexsdf_model_tests tests/model_tests.cpp)
     target_link_libraries(nexsdf_model_tests PRIVATE NexSdf::Query)
     target_compile_definitions(nexsdf_model_tests PRIVATE
-        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
+        NEXSDF_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
+        NEXSDF_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
     add_test(NAME nexsdf.models COMMAND nexsdf_model_tests)
     set_tests_properties(nexsdf.models PROPERTIES LABELS regression)
 
@@ -96,10 +97,12 @@ if(BUILD_TESTING AND NEXSDF_BUILD_TESTS)
     set_tests_properties(nexsdf.influence PROPERTIES LABELS regression)
 
     if(NEXSDF_BUILD_TOOLS)
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
         add_test(NAME nexsdf.model_catalog
             COMMAND ${CMAKE_COMMAND}
                 -DAUDITOR=$<TARGET_FILE:nexsdfmodelaudit>
                 -DMODEL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/models
+                -DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/model_catalog_smoke.cmake)
         set_tests_properties(nexsdf.model_catalog PROPERTIES LABELS regression)
 

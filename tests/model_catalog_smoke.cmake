@@ -6,7 +6,19 @@ if(NOT IS_DIRECTORY "${MODEL_DIR}")
 endif()
 
 execute_process(
-    COMMAND "${AUDITOR}" "${MODEL_DIR}" --expect-files 32 --expect-ready 29
+    COMMAND "${PYTHON_EXECUTABLE}"
+        "${MODEL_DIR}/../scripts/regenerate_reference_models.py"
+        --output-dir "${MODEL_DIR}/sdfmodel" --check
+    RESULT_VARIABLE regeneration_result
+    OUTPUT_VARIABLE regeneration_output
+    ERROR_VARIABLE regeneration_error)
+if(NOT regeneration_result EQUAL 0)
+    message(FATAL_ERROR
+        "generated reference models are stale:\n${regeneration_output}\n${regeneration_error}")
+endif()
+
+execute_process(
+    COMMAND "${AUDITOR}" "${MODEL_DIR}" --expect-files 33 --expect-ready 32
     RESULT_VARIABLE audit_result
     OUTPUT_VARIABLE audit_output
     ERROR_VARIABLE audit_error)
@@ -18,6 +30,7 @@ foreach(required_path
         "pycoco/obj_model/complex_geometry/PressureLubricatedCam.obj"
         "sdfmodel/cam.nsm"
         "sdfmodel/gear.nsm"
+        "sdfmodel/cam.stl"
         "nagata/cone.nsm"
         "sdflib/Gear.obj")
     string(FIND "${audit_output}" "${required_path}\t" found_at)

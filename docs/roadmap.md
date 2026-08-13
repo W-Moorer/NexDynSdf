@@ -93,7 +93,7 @@ NSDF 1.2 metadata, C provenance fields, and analytic disjoint/nested/intersectin
 fixtures in `tests/unit_tests.cpp`. Catalog models are not automatically assigned
 a policy; their physical meaning still requires an explicit caller choice.
 
-## M3: source-model repair and input-format decision
+## M3: source-model repair and input-format decision (implemented)
 
 Regenerate `sdfmodel/cam.nsm` and `sdfmodel/gear.nsm` from their originating
 scripts or source surfaces. Prefer reproducible regeneration over destructive
@@ -117,6 +117,15 @@ Format work has a separate decision gate:
 
 Acceptance requires parser fuzz/corruption tests, round-trip fixtures where the
 format permits them, and no path that bypasses signed-distance topology checks.
+
+Implementation: `scripts/regenerate_reference_models.py` deterministically
+rebuilds topology-valid cam/gear NSM and cam STL assets from the reviewed
+SDFmodel profiles. NSM output has stable surface IDs and explicit corner
+normals. `load_stl` strictly handles ASCII/binary input with exact-coordinate
+welding and advisory facet-normal orientation. `load_eng_v1` validates the
+versioned sidecar against an associated mesh; ENG remains non-standalone by
+design. Model tests cover topology, format equivalence, association, and
+truncation failure.
 
 ## M4: deterministic CPU parallelism and SIMD
 

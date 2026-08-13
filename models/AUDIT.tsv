@@ -27,7 +27,8 @@ pycoco/obj_model/smooth_geometry/Ellipsoid.obj	obj	336	668	1	1	1	1	0	0	0	valid c
 pycoco/obj_model/smooth_geometry/Ring.obj	obj	158	316	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 pycoco/obj_model/smooth_geometry/Sphere.obj	obj	163	322	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 sdflib/Gear.obj	obj	3443	6882	1	1	1	1	0	0	0	valid closed oriented triangle mesh
-sdfmodel/cam.nsm	nsm	122	240	1	0	0	1	60	60	0	mesh is not a closed two-manifold
-sdfmodel/gear.nsm	nsm	50	96	1	0	0	1	24	24	0	mesh is not a closed two-manifold
+sdfmodel/cam.nsm	nsm	122	240	1	1	1	1	0	0	0	valid closed oriented triangle mesh
+sdfmodel/cam.stl	stl	122	240	0	1	1	1	0	0	0	valid closed oriented triangle mesh
+sdfmodel/gear.nsm	nsm	50	96	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 sdfmodel/validation_coarse.nsm	nsm	162	320	1	1	1	1	0	0	0	valid closed oriented triangle mesh
 sdfmodel/validation_fine.nsm	nsm	642	1280	1	1	1	1	0	0	0	valid closed oriented triangle mesh
