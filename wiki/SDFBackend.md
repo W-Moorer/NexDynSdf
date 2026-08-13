@@ -24,6 +24,7 @@ OBJ / NSM v1
   -> dense / exact influence / adaptive representation
   -> checksummed .nsdf
   -> C or C++ read-only queries
+  -> optional headless diagnostic slices through the same batch query path
 ```
 
 ## Important source files
@@ -33,6 +34,8 @@ OBJ / NSM v1
 - `src/reconstruction.cpp`: trilinear, tricubic, Gradient Taylor.
 - `src/asset.cpp`: builders, octrees, `.nsdf`, query dispatch.
 - `src/c_api.cpp`: C ABI and exception/status translation.
+- `tools/nexsdfviz.cpp`: deterministic distance/normal/depth/error slices.
+- `scripts/generate_readme_images.ps1`: reproducible reference-fixture images.
 
 ## Tests and validation
 
@@ -40,7 +43,8 @@ OBJ / NSM v1
 scan, exact-octree conservation, reconstruction derivatives, adaptive
 coarse/fine continuity, serialization, corruption rejection, and C ABI status.
 `tests/model_tests.cpp` checks migrated PyCoCo, SdfLib, and enhanced Nagata
-models.
+models. `tests/visualization_smoke.cmake` exercises all five visualization
+modes against a generated asset.
 
 ## Known limitations
 
@@ -60,10 +64,13 @@ models.
 Date: 2026-08-13.
 
 Sources: `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-`src/mesh_io.cpp`, `src/c_api.cpp`.
+`src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`,
+`scripts/generate_readme_images.ps1`.
 
 Tests: `tests/unit_tests.cpp`, `tests/c_api_tests.c`,
-`tests/model_tests.cpp`, `tests/install_consumer/main.c`.
+`tests/model_tests.cpp`, `tests/visualization_smoke.cmake`,
+`tests/install_consumer/main.c`.
 
-Commands run: Release static unit/regression passed; Release shared unit passed;
-installed-package consumer passed.
+Commands run: Release static and shared unit/regression/integration passed;
+README image generation and installed-package consumption passed. The final
+benchmark result is recorded in `wiki/TestsAndValidation.md`.

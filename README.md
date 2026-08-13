@@ -6,6 +6,38 @@ NexDyn can consume generated `.nsdf` assets through the stable C API or the
 same-toolchain C++ wrapper. The C ABI is the integration boundary intended for
 long-lived runtime compatibility.
 
+## Reproducible results
+
+The images below are generated from the migrated reference fixtures by
+`scripts/generate_readme_images.ps1`. They are sampled through the same
+`Asset::query_batch` path used by consumers; no private file-layout reader or
+GPU shader reimplements the SDF query.
+
+| Gradient Taylor distance/sign | Gradient Taylor unit normal |
+|---|---|
+| ![PyCoCo sphere Gradient Taylor signed-distance slice](docs/images/pycoco-sphere-gradient-distance.png) | ![PyCoCo sphere Gradient Taylor unit-normal slice](docs/images/pycoco-sphere-gradient-normal.png) |
+
+The PyCoCoFastSDF sphere is baked to a `64^3` dense Gradient Taylor field. In
+the distance view, blue is negative (inside), red is positive (outside), and
+the dark line is the sampled zero crossing. The normal view maps normalized
+`x/y/z` gradient components to RGB.
+
+| Adaptive tricubic leaf depth | Adaptive 19-probe measured error |
+|---|---|
+| ![Nagata cone adaptive-octree depth slice](docs/images/nagata-cone-adaptive-depth.png) | ![Nagata cone adaptive-octree measured-error slice](docs/images/nagata-cone-adaptive-error.png) |
+
+The NSM cone fixture retains its per-corner normals. These diagnostic slices
+show where the adaptive tricubic tree refines and the per-leaf maximum error
+measured at its 19 independent probes. The latter is not a certified
+whole-cell bound.
+
+![SdfLib Gear exact influence-octree signed-distance slice](docs/images/sdflib-gear-exact-distance.png)
+
+The SdfLib Gear fixture is evaluated by the exact conservative
+triangle-influence octree (`6,882` source triangles). See
+[`docs/visualization.md`](docs/visualization.md) for the reference-module
+review, rendering semantics, exact generation settings, and limitations.
+
 Implemented representations and reconstructions:
 
 - exact conservative triangle-influence octree;
@@ -42,6 +74,21 @@ build/Release/nexsdfgen.exe tests/models/pycoco/cube.obj out/cube.nsdf `
   --representation grid --reconstruction trilinear --resolution 48
 build/Release/nexsdfinspect.exe out/cube.nsdf 2 0 0
 ```
+
+Generate a headless diagnostic slice and convert it to PNG without third-party
+Python packages:
+
+```powershell
+build/Release/nexsdfviz.exe out/cube.nsdf out/cube.ppm `
+  --axis z --mode distance --resolution 512
+python scripts/ppm_to_png.py out/cube.ppm out/cube.png
+
+# Rebuild every committed README image from migrated fixtures.
+scripts/generate_readme_images.ps1 -Configuration Release
+```
+
+`nexsdfviz` supports `distance`, `normal`, `gradient-error`, `depth`, and
+`error` modes. It is an offline tool and is not part of the runtime ABI.
 
 Valid representation/reconstruction pairs are:
 

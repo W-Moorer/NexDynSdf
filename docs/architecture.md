@@ -3,9 +3,9 @@
 ## Current implementation status
 
 NexDynSdf is split into mesh import, exact surface evaluation, field building,
-asset serialization, and read-only runtime querying. C and C++ entry points are
-packaged in one zero-third-party-dependency library; NexDyn runtime use should
-load prebuilt assets through the C ABI.
+asset serialization, read-only runtime querying, and optional offline tools. C
+and C++ entry points are packaged in one zero-third-party-dependency library;
+NexDyn runtime use should load prebuilt assets through the C ABI.
 
 ## Main data flow
 
@@ -13,6 +13,7 @@ load prebuilt assets through the C ABI.
 OBJ / NSM -> SurfaceMesh -> validation -> ExactSurface
   -> grid / exact influence octree / adaptive octree
   -> versioned .nsdf -> C API / C++ wrapper -> NexDyn adapter
+                  \-> nexsdfviz -> PPM -> standard-library PNG conversion
 ```
 
 ## Public boundary
@@ -34,6 +35,8 @@ exact influence assets retain it for witness, feature, and pseudo-normal data.
   `unit_normal` is normalized separately.
 - Domain exit is fail-closed: no unchecked extrapolation.
 - Generation/import remain offline operations in the C++ API and CLI.
+- Visualization is a separate tool target. It uses batch public queries and is
+  neither installed as nor linked into the runtime library.
 
 ## Known limitations
 
@@ -59,7 +62,7 @@ Date: 2026-08-13.
 Sources:
 
 - `src/geometry.cpp`, `src/reconstruction.cpp`, `src/asset.cpp`,
-  `src/mesh_io.cpp`, `src/c_api.cpp`
+  `src/mesh_io.cpp`, `src/c_api.cpp`, `tools/nexsdfviz.cpp`
 - `include/nexsdf/nexsdf.hpp`, `include/nexsdf/c_api.h`
 
 Tests:
@@ -67,18 +70,24 @@ Tests:
 - `tests/unit_tests.cpp`
 - `tests/c_api_tests.c`
 - `tests/model_tests.cpp`
+- `tests/visualization_smoke.cmake`
 - `tests/benchmark_exact.cpp`
 - `tests/install_consumer/main.c`
 
 Commands run in this session:
 
-- `ctest --test-dir build -C Release -L unit --output-on-failure` — passed.
-- `ctest --test-dir build -C Release -L regression --output-on-failure` — passed.
-- shared-library unit suite in `build-shared` — passed.
+- `scripts/run_tests.ps1 -Configuration Release` — passed static unit and
+  regression suites.
+- static integration suite in `build-test-static-final` — passed.
+- `scripts/run_tests.ps1 -Configuration Release -Shared` — passed shared unit
+  and regression suites.
+- shared integration suite in `build-test-shared-final` — passed.
 - `scripts/verify_install.ps1 -Configuration Release` — passed.
 - `ctest --test-dir build-test-static-final -C Release -L benchmark
-  --output-on-failure -V` — passed; zero numerical difference and 42.9014x
+  --output-on-failure -V` — passed; zero numerical difference and 48.4583x
   observed BVH speedup on the migrated Gear fixture.
+- `scripts/generate_readme_images.ps1 -Configuration Release
+  -ImageResolution 512` — passed.
 
 The benchmark command is recorded in `wiki/TestsAndValidation.md` after its
 final run.

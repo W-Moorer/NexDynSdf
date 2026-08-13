@@ -12,6 +12,16 @@ trees are not vendored.
 | `E:/workspace/SdfLib` | `8db373e` | exact triangle-influence octree, adaptive polynomial octree, trilinear and tricubic Hermite data layout, Gear model | MIT, Eduard Pujol |
 | `E:/workspace/enhanced-nagata-sdf` | `3443478` plus inspected local NSM data | NSM v1 binary layout and per-corner-normal regression models | MIT, Enhanced Nagata SDF Project Authors |
 
+The visualization review additionally covered SdfLib's tracked OpenGL viewers,
+plane shaders, and compute-shader ray marcher at `8db373ef71d6`, plus the local
+SdfLib worktree's untracked sampler and Python Marching Cubes/Plotly files. The
+reviewed PyCoCoFastSDF zero-isosurface, off-screen batch screenshot,
+normal-error heatmap, and surface-distance scripts are tracked at
+`74155fa32704`. The resulting NexDynSdf visualizer is an independent
+implementation that uses the public query API; no OpenGL/VTK/PyVista code is
+vendored or linked. Detailed findings and exact reviewed files are in
+`docs/visualization.md`.
+
 Copied test assets retain their original names, are kept under
 `tests/models/<source>/`, and are recorded in `tests/models/MANIFEST.md` with
 source paths and SHA-256 hashes.
