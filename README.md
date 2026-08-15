@@ -11,8 +11,9 @@ long-lived runtime compatibility.
 The images below are generated from the canonical model catalog by
 `scripts/generate_readme_images.ps1`. They are sampled through the same
 `Asset::query_batch` path used by consumers; exact contact consumers can also
-use `Asset::query_certified` to obtain a conservative local branch-motion
-radius. No private file-layout reader or GPU shader reimplements the SDF query.
+use scalar or batched certified queries to obtain conservative local
+branch-motion radii. No private file-layout reader or GPU shader reimplements
+the SDF query.
 
 | Gradient Taylor distance/sign | Gradient Taylor unit normal |
 |---|---|

@@ -267,6 +267,15 @@ public:
     const AssetInfo& info() const noexcept;
     QueryResult query(Vec3 point) const;
     QueryResult query_certified(Vec3 point) const;
+    void query_certified_batch(
+        const Vec3* points,
+        std::size_t count,
+        QueryResult* out) const;
+    void query_certified_batch(
+        const Vec3* points,
+        std::size_t count,
+        QueryResult* out,
+        const BatchQueryOptions& options) const;
     void query_batch(const Vec3* points, std::size_t count, QueryResult* out) const;
     void query_batch(
         const Vec3* points,

@@ -801,6 +801,78 @@ void test_parallel_and_batch_backends()
           certified_c_result.face_id == certified.face_id &&
           certified_c_clearance == certified.branch_motion_clearance,
         "C certified query preserves the C++ branch and clearance");
+    const std::array<nexsdf::Vec3, 3> certified_points{
+        certified_point,
+        nexsdf::Vec3{1.1, 0.4, -0.2},
+        certified_point};
+    std::array<nexsdf::QueryResult, 3> certified_batch{};
+    nexsdf::BatchQueryOptions certified_parallel;
+    certified_parallel.backend = nexsdf::BatchBackend::AutoSimd;
+    certified_parallel.worker_threads = 3u;
+    exact_reference.query_certified_batch(
+        certified_points.data(),
+        certified_points.size(),
+        certified_batch.data(),
+        certified_parallel);
+    for (std::size_t index = 0; index < certified_points.size(); ++index)
+    {
+        const nexsdf::QueryResult scalar =
+            exact_reference.query_certified(certified_points[index]);
+        check(certified_batch[index].valid &&
+              certified_batch[index].face_id == scalar.face_id &&
+              certified_batch[index].branch_signature ==
+                  scalar.branch_signature &&
+              certified_batch[index].branch_motion_clearance ==
+                  scalar.branch_motion_clearance,
+            "parallel certified batch preserves scalar branch certificate");
+    }
+    const double certified_batch_xyz[9]{
+        certified_points[0].x, certified_points[0].y, certified_points[0].z,
+        certified_points[1].x, certified_points[1].y, certified_points[1].z,
+        certified_points[2].x, certified_points[2].y, certified_points[2].z};
+    nexsdf_query_result certified_c_batch[3]{};
+    double certified_c_clearances[3]{};
+    const nexsdf_status certified_batch_status =
+        nexsdf_query_certified_batch(
+            certified_handle,
+            3u,
+            certified_batch_xyz,
+            3u * sizeof(double),
+            certified_c_batch,
+            certified_c_clearances);
+    check(certified_batch_status == NEXSDF_STATUS_OK,
+        "C certified batch query succeeds");
+    for (std::size_t index = 0; index < certified_points.size(); ++index)
+    {
+        check(certified_c_batch[index].face_id ==
+                  certified_batch[index].face_id &&
+              certified_c_clearances[index] ==
+                  certified_batch[index].branch_motion_clearance,
+            "C certified batch preserves branch identity and clearance");
+    }
+    constexpr std::size_t c_parallel_count = 4096u;
+    std::vector<double> c_parallel_xyz(3u * c_parallel_count);
+    std::vector<nexsdf_query_result> c_parallel_results(c_parallel_count);
+    std::vector<double> c_parallel_clearances(c_parallel_count);
+    for (std::size_t index = 0; index < c_parallel_count; ++index)
+    {
+        c_parallel_xyz[3u * index] = certified_point.x;
+        c_parallel_xyz[3u * index + 1u] = certified_point.y;
+        c_parallel_xyz[3u * index + 2u] = certified_point.z;
+    }
+    const nexsdf_status c_parallel_status = nexsdf_query_certified_batch(
+        certified_handle,
+        c_parallel_count,
+        c_parallel_xyz.data(),
+        3u * sizeof(double),
+        c_parallel_results.data(),
+        c_parallel_clearances.data());
+    check(c_parallel_status == NEXSDF_STATUS_OK &&
+          c_parallel_results.front().face_id == certified.face_id &&
+          c_parallel_results.back().face_id == certified.face_id &&
+          c_parallel_clearances.front() == certified.branch_motion_clearance &&
+          c_parallel_clearances.back() == certified.branch_motion_clearance,
+        "large C certified batch preserves deterministic results under its parallel policy");
     nexsdf_asset_close(certified_handle);
     std::filesystem::remove(certified_path, error);
     std::filesystem::remove(scalar_path, error);

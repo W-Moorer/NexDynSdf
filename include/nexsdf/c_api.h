@@ -101,6 +101,13 @@ NEXSDF_API nexsdf_status nexsdf_query_certified(
     const double point[3],
     nexsdf_query_result* out_result,
     double* out_branch_motion_clearance);
+NEXSDF_API nexsdf_status nexsdf_query_certified_batch(
+    const nexsdf_asset* asset,
+    size_t count,
+    const double* xyz,
+    size_t xyz_stride_bytes,
+    nexsdf_query_result* out_results,
+    double* out_branch_motion_clearances);
 NEXSDF_API nexsdf_status nexsdf_query_batch(
     const nexsdf_asset* asset,
     size_t count,

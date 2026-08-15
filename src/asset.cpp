@@ -852,6 +852,41 @@ QueryResult Asset::query_certified(Vec3 point) const
     return result;
 }
 
+void Asset::query_certified_batch(
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out) const
+{
+    query_certified_batch(points, count, out, BatchQueryOptions{});
+}
+
+void Asset::query_certified_batch(
+    const Vec3* points,
+    std::size_t count,
+    QueryResult* out,
+    const BatchQueryOptions& options) const
+{
+    if ((count != 0 && (!points || !out)) || !impl_ || !impl_->data)
+    {
+        throw std::invalid_argument(
+            "invalid certified batch query arguments or empty asset");
+    }
+    if (options.worker_threads == 0)
+    {
+        throw std::invalid_argument(
+            "certified batch worker thread count must be positive");
+    }
+    if (options.backend == BatchBackend::CudaExperimental)
+    {
+        throw std::invalid_argument(
+            "certified batch query does not support the experimental CUDA backend");
+    }
+    deterministic_parallel_for(count, options.worker_threads, [&](std::size_t i)
+    {
+        out[i] = query_certified(points[i]);
+    });
+}
+
 void Asset::query_batch(const Vec3* points, std::size_t count, QueryResult* out) const
 {
     query_batch(points, count, out, BatchQueryOptions{});

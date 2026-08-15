@@ -102,6 +102,12 @@ larger structure, so this extension does not invalidate an already compiled
 asset domain, the function returns `NEXSDF_STATUS_OUT_OF_DOMAIN`, while every
 result still carries its own flags so the caller can identify valid entries.
 
+`nexsdf_query_certified_batch` applies the same contract to exact certified
+queries and writes one branch-motion clearance per result. The C++
+`Asset::query_certified_batch` overload accepts `BatchQueryOptions`; certified
+queries reject the experimental CUDA backend because branch certificates must
+be produced by the exact CPU path.
+
 ## Threading
 
 Loaded assets are immutable. Read-only queries use local traversal state and
@@ -109,11 +115,15 @@ can be issued concurrently against one handle. Handle destruction must be
 externally synchronized with outstanding queries. `nexsdf_last_error()` is
 thread-local and is overwritten by the next C API call on that thread.
 
-The C ABI intentionally retains one batch function and chooses the normal CPU
-path. C++ offline/experimental clients may use `BatchQueryOptions` to select
-scalar, auto-SIMD, or CUDA evaluation and a deterministic CPU worker count.
-The default remains scalar so existing three-argument `query_batch` calls keep
-their previous floating-point evaluation order; SIMD and CUDA are explicit.
+The C ABI retains one batch function and uses an internal deterministic CPU
+policy: batches below 256 points use one auto-SIMD worker, while larger
+batches use contiguous fixed partitions on up to eight hardware workers.
+Every point is evaluated independently into its original output slot, so
+parallel execution preserves scalar feature identity and floating-point
+results. C++ offline/experimental clients may instead use `BatchQueryOptions`
+to select scalar, auto-SIMD, or CUDA evaluation and an explicit worker count.
+The default three-argument C++ `query_batch` call remains scalar; SIMD, CUDA,
+and parallel C++ execution are explicit.
 
 ## Status mapping
 
@@ -127,7 +137,7 @@ their previous floating-point evaluation order; SIMD and CUDA are explicit.
 
 ## Last verified against
 
-Date: 2026-08-15.
+Date: 2026-08-16.
 
 Sources: `include/nexsdf/c_api.h`, `src/c_api.cpp`, `src/asset.cpp`.
 

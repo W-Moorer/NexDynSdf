@@ -9,6 +9,8 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <vector>
 
 struct nexsdf_asset
 {
@@ -93,6 +95,61 @@ void copy_result(const nexsdf::QueryResult& source, nexsdf_query_result& target)
         (source.has_hessian ? NEXSDF_QUERY_HAS_HESSIAN : 0u) |
         (source.has_witness ? NEXSDF_QUERY_HAS_WITNESS : 0u) |
         (source.has_measured_error ? NEXSDF_QUERY_HAS_MEASURED_ERROR : 0u);
+}
+
+nexsdf::BatchQueryOptions c_api_batch_options(
+    const nexsdf::Asset& asset,
+    std::size_t count) noexcept
+{
+    (void)asset;
+    nexsdf::BatchQueryOptions options;
+    options.backend = nexsdf::BatchBackend::AutoSimd;
+    // Thread creation is not profitable for the small Newton batches used by
+    // branch-certificate refreshes.  Full-surface frozen residuals contain
+    // thousands of independent samples, however, and deterministic contiguous
+    // partitions preserve every per-point result while substantially reducing
+    // latency.  Cap the stable C ABI policy so it cannot oversubscribe a host.
+    constexpr std::size_t kParallelBatchThreshold = 256u;
+    constexpr std::uint32_t kMaximumWorkers = 8u;
+    const std::uint32_t hardware = std::thread::hardware_concurrency();
+    options.worker_threads = count >= kParallelBatchThreshold
+        ? std::max(
+              1u,
+              std::min(kMaximumWorkers, hardware == 0u ? 1u : hardware))
+        : 1u;
+    return options;
+}
+
+bool valid_batch_arguments(
+    const nexsdf_asset* asset,
+    size_t count,
+    const double* xyz,
+    size_t xyz_stride_bytes,
+    const void* out_results) noexcept
+{
+    constexpr size_t point_bytes = 3 * sizeof(double);
+    const size_t maximum_size = static_cast<size_t>(-1);
+    return asset && (count == 0 || (xyz && out_results)) &&
+        (count == 0 || xyz_stride_bytes >= point_bytes) &&
+        count <= maximum_size / sizeof(nexsdf_query_result) &&
+        (count <= 1 || xyz_stride_bytes <=
+            ((maximum_size - point_bytes) / (count - 1)));
+}
+
+std::vector<nexsdf::Vec3> gather_points(
+    size_t count,
+    const double* xyz,
+    size_t xyz_stride_bytes)
+{
+    std::vector<nexsdf::Vec3> points(count);
+    const auto* bytes = reinterpret_cast<const unsigned char*>(xyz);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        double point[3]{};
+        std::memcpy(point, bytes + i * xyz_stride_bytes, sizeof(point));
+        points[i] = {point[0], point[1], point[2]};
+    }
+    return points;
 }
 
 } // namespace
@@ -255,6 +312,55 @@ nexsdf_status nexsdf_query_certified(
     }
 }
 
+nexsdf_status nexsdf_query_certified_batch(
+    const nexsdf_asset* asset,
+    size_t count,
+    const double* xyz,
+    size_t xyz_stride_bytes,
+    nexsdf_query_result* out_results,
+    double* out_branch_motion_clearances)
+{
+    if (!valid_batch_arguments(
+            asset, count, xyz, xyz_stride_bytes, out_results) ||
+        (count != 0 && !out_branch_motion_clearances))
+    {
+        return fail(
+            NEXSDF_STATUS_INVALID_ARGUMENT,
+            "invalid certified batch query arguments");
+    }
+    bool outside = false;
+    try
+    {
+        const std::vector<nexsdf::Vec3> points =
+            gather_points(count, xyz, xyz_stride_bytes);
+        std::vector<nexsdf::QueryResult> results(count);
+        asset->asset.query_certified_batch(
+            points.data(),
+            points.size(),
+            results.data(),
+            c_api_batch_options(asset->asset, count));
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            copy_result(results[i], out_results[i]);
+            out_branch_motion_clearances[i] =
+                results[i].branch_motion_clearance;
+            outside = outside || !results[i].in_domain;
+        }
+        if (outside)
+        {
+            return fail(
+                NEXSDF_STATUS_OUT_OF_DOMAIN,
+                "one or more certified batch points are outside the asset domain");
+        }
+        last_error.clear();
+        return NEXSDF_STATUS_OK;
+    }
+    catch (...)
+    {
+        return translate_exception();
+    }
+}
+
 nexsdf_status nexsdf_query_batch(
     const nexsdf_asset* asset,
     size_t count,
@@ -262,27 +368,26 @@ nexsdf_status nexsdf_query_batch(
     size_t xyz_stride_bytes,
     nexsdf_query_result* out_results)
 {
-    constexpr size_t point_bytes = 3 * sizeof(double);
-    const size_t maximum_size = static_cast<size_t>(-1);
-    if (!asset || (count != 0 && (!xyz || !out_results)) ||
-        (count != 0 && xyz_stride_bytes < point_bytes) ||
-        (count > maximum_size / sizeof(nexsdf_query_result)) ||
-        (count > 1 && xyz_stride_bytes >
-            ((maximum_size - point_bytes) / (count - 1))))
+    if (!valid_batch_arguments(
+            asset, count, xyz, xyz_stride_bytes, out_results))
     {
         return fail(NEXSDF_STATUS_INVALID_ARGUMENT, "invalid batch query arguments");
     }
     bool outside = false;
     try
     {
-        const auto* bytes = reinterpret_cast<const unsigned char*>(xyz);
+        const std::vector<nexsdf::Vec3> points =
+            gather_points(count, xyz, xyz_stride_bytes);
+        std::vector<nexsdf::QueryResult> results(count);
+        asset->asset.query_batch(
+            points.data(),
+            points.size(),
+            results.data(),
+            c_api_batch_options(asset->asset, count));
         for (std::size_t i = 0; i < count; ++i)
         {
-            double point[3]{};
-            std::memcpy(point, bytes + i * xyz_stride_bytes, sizeof(point));
-            const nexsdf::QueryResult result = asset->asset.query({point[0], point[1], point[2]});
-            copy_result(result, out_results[i]);
-            outside = outside || !result.in_domain;
+            copy_result(results[i], out_results[i]);
+            outside = outside || !results[i].in_domain;
         }
         if (outside)
         {

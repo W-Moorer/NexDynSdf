@@ -45,6 +45,13 @@ int main(void)
             fprintf(stderr, "null certified query asset was not rejected\n");
             return 1;
         }
+        if (nexsdf_query_certified_batch(
+                asset, 1, point, 3 * sizeof(double), &result, &clearance) !=
+            NEXSDF_STATUS_INVALID_ARGUMENT)
+        {
+            fprintf(stderr, "null certified batch query asset was not rejected\n");
+            return 1;
+        }
     }
     if (nexsdf_last_error() == NULL || nexsdf_last_error()[0] == '\0')
     {
