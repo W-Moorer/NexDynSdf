@@ -160,6 +160,10 @@ struct QueryResult
     double measured_leaf_error{0.0};
     std::uint64_t branch_signature{0};
     std::uint32_t cell_depth{0};
+    // Conservative asset-local point-motion radius that preserves the exact
+    // closest triangle and its face-interior Voronoi branch. Edge/vertex
+    // branches and nearest-triangle ties report zero.
+    double branch_motion_clearance{0.0};
     bool valid{false};
     bool exact{false};
     bool in_domain{false};
@@ -235,6 +239,7 @@ public:
     std::size_t active_component_count() const noexcept;
     const std::vector<std::uint32_t>& active_triangles() const noexcept;
     QueryResult query(Vec3 point) const;
+    QueryResult query_certified(Vec3 point) const;
     void query_batch(const Vec3* points, std::size_t count, QueryResult* out) const;
     QueryResult query_subset(
         Vec3 point,
@@ -261,6 +266,7 @@ public:
 
     const AssetInfo& info() const noexcept;
     QueryResult query(Vec3 point) const;
+    QueryResult query_certified(Vec3 point) const;
     void query_batch(const Vec3* points, std::size_t count, QueryResult* out) const;
     void query_batch(
         const Vec3* points,

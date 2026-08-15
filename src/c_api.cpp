@@ -215,6 +215,46 @@ nexsdf_status nexsdf_query(
     }
 }
 
+nexsdf_status nexsdf_query_certified(
+    const nexsdf_asset* asset,
+    const double point[3],
+    nexsdf_query_result* out_result,
+    double* out_branch_motion_clearance)
+{
+    if (!asset || !point || !out_result || !out_branch_motion_clearance)
+    {
+        return fail(
+            NEXSDF_STATUS_INVALID_ARGUMENT,
+            "asset, point, result, and branch clearance are required");
+    }
+    *out_branch_motion_clearance = 0.0;
+    try
+    {
+        const nexsdf::QueryResult result = asset->asset.query_certified(
+            {point[0], point[1], point[2]});
+        copy_result(result, *out_result);
+        *out_branch_motion_clearance = result.branch_motion_clearance;
+        if (!result.in_domain)
+        {
+            return fail(
+                NEXSDF_STATUS_OUT_OF_DOMAIN,
+                "query point is outside the asset domain");
+        }
+        if (!result.valid)
+        {
+            return fail(
+                NEXSDF_STATUS_INTERNAL_ERROR,
+                "certified query did not produce a finite result");
+        }
+        last_error.clear();
+        return NEXSDF_STATUS_OK;
+    }
+    catch (...)
+    {
+        return translate_exception();
+    }
+}
+
 nexsdf_status nexsdf_query_batch(
     const nexsdf_asset* asset,
     size_t count,

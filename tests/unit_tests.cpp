@@ -753,7 +753,56 @@ void test_parallel_and_batch_backends()
                   scalar_results[index].branch_signature,
             "parallel exact octree preserves feature and branch identity");
     }
+
+    const nexsdf::Vec3 certified_point{1.1, -0.4, 0.2};
+    const nexsdf::QueryResult certified =
+        exact_reference.query_certified(certified_point);
+    check(certified.valid && certified.exact && certified.in_domain &&
+          certified.feature == nexsdf::Feature::Face &&
+          certified.branch_motion_clearance > 0.0,
+        "exact asset returns a positive face-branch motion certificate");
+    const std::array<nexsdf::Vec3, 6> directions{
+        nexsdf::Vec3{1.0, 0.0, 0.0}, nexsdf::Vec3{-1.0, 0.0, 0.0},
+        nexsdf::Vec3{0.0, 1.0, 0.0}, nexsdf::Vec3{0.0, -1.0, 0.0},
+        nexsdf::Vec3{0.0, 0.0, 1.0}, nexsdf::Vec3{0.0, 0.0, -1.0}};
+    for (const nexsdf::Vec3 direction : directions)
+    {
+        const nexsdf::QueryResult moved = exact_reference.query(
+            certified_point +
+            0.5 * certified.branch_motion_clearance * direction);
+        check(moved.valid && moved.face_id == certified.face_id &&
+              moved.feature == certified.feature,
+            "motion strictly inside the certificate preserves the branch");
+    }
+    const nexsdf::QueryResult tied =
+        exact_reference.query_certified({1.1, 0.0, 0.0});
+    check(tied.valid && tied.branch_motion_clearance == 0.0,
+        "nearest-triangle tie does not claim a positive certificate");
+
     std::error_code error;
+    const std::filesystem::path certified_path =
+        temporary_asset_path("nexsdf-certified.nsdf");
+    exact_reference.save(certified_path.string());
+    nexsdf_asset* certified_handle = nullptr;
+    const nexsdf_status certified_open = nexsdf_asset_open(
+        certified_path.string().c_str(), &certified_handle);
+    check(certified_open == NEXSDF_STATUS_OK && certified_handle != nullptr,
+        "C API opens an exact asset for certified queries");
+    const double certified_xyz[3]{
+        certified_point.x, certified_point.y, certified_point.z};
+    nexsdf_query_result certified_c_result{};
+    double certified_c_clearance = 0.0;
+    const nexsdf_status certified_status = nexsdf_query_certified(
+        certified_handle,
+        certified_xyz,
+        &certified_c_result,
+        &certified_c_clearance);
+    check(certified_status == NEXSDF_STATUS_OK &&
+          certified_c_result.face_id == certified.face_id &&
+          certified_c_clearance == certified.branch_motion_clearance,
+        "C certified query preserves the C++ branch and clearance");
+    nexsdf_asset_close(certified_handle);
+    std::filesystem::remove(certified_path, error);
     std::filesystem::remove(scalar_path, error);
     std::filesystem::remove(parallel_path, error);
     std::filesystem::remove(parallel_repeat_path, error);

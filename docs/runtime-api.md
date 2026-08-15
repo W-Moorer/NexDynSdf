@@ -38,6 +38,12 @@ nexsdf_asset_close(asset);
   probes, only when `NEXSDF_QUERY_HAS_MEASURED_ERROR` is set.
 - `branch_signature`: deterministic local branch identifier. It can be used to
   notice feature/leaf changes, but it is not a persistent object identifier.
+- `branch_motion_clearance`: C++ `QueryResult` field populated only by
+  `query_certified`. It is an asset-local, conservative point-motion radius
+  for which the selected triangle and its face-interior closest-feature branch
+  remain valid. The C ABI returns the same value through the separate output
+  of `nexsdf_query_certified` so the fixed `nexsdf_query_result` layout remains
+  unchanged.
 - `cell_depth`: octree leaf depth; zero for dense assets.
 
 Imported corner normals are retained as mesh metadata in exact assets. They do
@@ -52,6 +58,26 @@ edge of the associated mesh. ENG cannot be passed to `nexsdfgen` by itself.
 At medial axes or symmetric centers the SDF is not differentiable. Approximate
 reconstructions may return a zero raw gradient there; callers must not assume a
 unit normal exists merely because the scalar value is valid.
+
+## Certified exact query
+
+`nexsdf_query_certified` performs a global exact query and additionally
+returns a conservative clearance for reusing its face-interior triangle
+branch. The radius is the minimum of:
+
+- the perpendicular distance of the witness to each triangle edge, preserving
+  the face Voronoi region;
+- half the distance gap between the nearest and second-nearest triangles,
+  after a scale-derived floating-point tolerance;
+- the point's distance to the baked asset-domain boundary.
+
+The clearance is zero for edge/vertex features, nearest-triangle ties,
+approximate representations, invalid queries, or an exhausted margin. A caller
+may reuse the certified triangle only while asset-local point displacement is
+strictly less than the returned radius. Equality must refresh the global
+query. The certificate preserves the exact local branch; it does not certify a
+contact active set, time step, material law, or a grouping of coplanar mesh
+triangles into one application-level physical surface.
 
 ## Provenance extension
 
@@ -101,12 +127,13 @@ their previous floating-point evaluation order; SIMD and CUDA are explicit.
 
 ## Last verified against
 
-Date: 2026-08-13.
+Date: 2026-08-15.
 
 Sources: `include/nexsdf/c_api.h`, `src/c_api.cpp`, `src/asset.cpp`.
 
 Tests: `tests/c_api_tests.c`, `tests/unit_tests.cpp`,
 `tests/install_consumer/main.c`.
 
-Commands: Release static/shared unit suites and installed-package consumer
-passed in this session.
+Commands: Release static/shared unit, C API, regression, integration, and
+benchmark suites passed 8/8; the shared package was reinstalled and consumed
+by the NexDyn adapter build.

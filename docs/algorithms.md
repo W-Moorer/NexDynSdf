@@ -38,6 +38,27 @@ identifier, closest feature, and a deterministic branch signature are retained.
 Representation and reconstruction are separate configuration axes. Exact
 influence octrees do not use interpolation.
 
+## Exact branch-motion certificate
+
+`ExactSurface::query_certified` obtains the globally nearest and
+second-nearest triangles from the exact BVH. A positive certificate is issued
+only when the closest point lies in the selected triangle's face interior.
+For query point `x`, nearest distance `d1`, second-nearest distance `d2`, and
+face-interior witness `q`, define:
+
+```text
+r_feature = min_i barycentric_i(q) * 2*area(T) / length(opposite_edge_i)
+r_competitor = 0.5 * max(0, d2 - d1 - floating_point_tolerance)
+r = min(r_feature, r_competitor, distance_to_asset_domain_boundary)
+```
+
+Each point-to-triangle distance is one-Lipschitz, so moving `x` by less than
+`(d2-d1)/2` cannot reverse the nearest/competitor ordering. The feature margin
+keeps the orthogonal witness inside the same triangle face, and the domain
+margin keeps the query valid. Their minimum is therefore a conservative
+asset-local radius for direct evaluation of that exact face branch. Ties and
+edge/vertex branches deliberately return zero.
+
 ## Execution backends
 
 `CpuScalar` is the offline reference backend. `CpuParallel` divides dense-grid

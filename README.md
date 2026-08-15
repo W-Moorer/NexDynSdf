@@ -10,8 +10,9 @@ long-lived runtime compatibility.
 
 The images below are generated from the canonical model catalog by
 `scripts/generate_readme_images.ps1`. They are sampled through the same
-`Asset::query_batch` path used by consumers; no private file-layout reader or
-GPU shader reimplements the SDF query.
+`Asset::query_batch` path used by consumers; exact contact consumers can also
+use `Asset::query_certified` to obtain a conservative local branch-motion
+radius. No private file-layout reader or GPU shader reimplements the SDF query.
 
 | Gradient Taylor distance/sign | Gradient Taylor unit normal |
 |---|---|
@@ -243,6 +244,8 @@ For a stable cross-module boundary, build shared and use `nexsdf/c_api.h`.
 
 See `docs/architecture.md`, `docs/algorithms.md`, and
 `docs/reference-provenance.md` for implementation boundaries and attribution.
-The exact runtime contract and file layout are in `docs/runtime-api.md` and
-`docs/asset-format.md`. Planned correctness, topology, format, performance, and
-validation work is tracked separately in [`docs/roadmap.md`](docs/roadmap.md).
+The exact runtime contract, including the conservative exact-branch motion
+certificate, and file layout are in `docs/runtime-api.md` and
+`docs/asset-format.md`. Planned correctness, topology, format, performance,
+and validation work is tracked separately in
+[`docs/roadmap.md`](docs/roadmap.md).

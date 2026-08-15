@@ -816,6 +816,42 @@ QueryResult Asset::query(Vec3 point) const
     return impl_ && impl_->data ? detail::query_asset(*impl_->data, point) : QueryResult{};
 }
 
+QueryResult Asset::query_certified(Vec3 point) const
+{
+    if (!impl_ || !impl_->data)
+    {
+        return QueryResult{};
+    }
+    const detail::AssetData& data = *impl_->data;
+    if (!data.info.domain.contains(point))
+    {
+        return QueryResult{};
+    }
+    if (data.info.representation != Representation::ExactInfluenceOctree)
+    {
+        return detail::query_asset(data, point);
+    }
+
+    const std::size_t leaf = leaf_at(data, point);
+    QueryResult result = data.exact_surface->query_certified(point);
+    result.in_domain = true;
+    result.branch_signature = hash_combine(result.branch_signature, leaf);
+    result.cell_depth = data.nodes[leaf].depth;
+    double domain_clearance = std::numeric_limits<double>::infinity();
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        domain_clearance = std::min(
+            domain_clearance,
+            std::min(
+                point[axis] - data.info.domain.minimum[axis],
+                data.info.domain.maximum[axis] - point[axis]));
+    }
+    result.branch_motion_clearance = std::min(
+        result.branch_motion_clearance,
+        std::max(0.0, domain_clearance));
+    return result;
+}
+
 void Asset::query_batch(const Vec3* points, std::size_t count, QueryResult* out) const
 {
     query_batch(points, count, out, BatchQueryOptions{});

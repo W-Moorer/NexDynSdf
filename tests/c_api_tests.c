@@ -37,6 +37,15 @@ int main(void)
         fprintf(stderr, "null query asset was not rejected\n");
         return 1;
     }
+    {
+        double clearance = 0.0;
+        if (nexsdf_query_certified(asset, point, &result, &clearance) !=
+            NEXSDF_STATUS_INVALID_ARGUMENT)
+        {
+            fprintf(stderr, "null certified query asset was not rejected\n");
+            return 1;
+        }
+    }
     if (nexsdf_last_error() == NULL || nexsdf_last_error()[0] == '\0')
     {
         fprintf(stderr, "C API did not retain an error message\n");

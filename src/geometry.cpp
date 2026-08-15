@@ -970,6 +970,83 @@ struct ExactSurface::Impl
         return best_triangle;
     }
 
+    std::array<std::uint32_t, 2> nearest_triangles(
+        Vec3 point,
+        std::size_t& result_count) const
+    {
+        const Aabb point_box{point, point};
+        std::array<double, 2> best_squared{
+            std::numeric_limits<double>::infinity(),
+            std::numeric_limits<double>::infinity()};
+        std::array<std::uint32_t, 2> best_triangle{0u, 0u};
+        result_count = 0u;
+        std::vector<std::uint32_t> stack{0u};
+        while (!stack.empty())
+        {
+            const std::uint32_t node_index = stack.back();
+            stack.pop_back();
+            const BvhNode& node = bvh[node_index];
+            const double lower = detail::aabb_distance(point_box, node.box);
+            if (lower * lower > best_squared[1]) continue;
+            if (node.leaf())
+            {
+                for (std::uint32_t i = 0; i < node.count; ++i)
+                {
+                    const std::uint32_t triangle_index =
+                        bvh_triangles[node.begin + i];
+                    const Triangle& triangle = mesh.triangles[triangle_index];
+                    const ClosestPoint closest = closest_point_on_triangle(
+                        point,
+                        mesh.vertices[triangle.vertex[0]],
+                        mesh.vertices[triangle.vertex[1]],
+                        mesh.vertices[triangle.vertex[2]]);
+                    const double distance_squared =
+                        squared_norm(point - closest.point);
+                    const bool first = result_count == 0u ||
+                        distance_squared < best_squared[0] ||
+                        (distance_squared == best_squared[0] &&
+                         triangle_index < best_triangle[0]);
+                    if (first)
+                    {
+                        if (result_count != 0u)
+                        {
+                            best_squared[1] = best_squared[0];
+                            best_triangle[1] = best_triangle[0];
+                        }
+                        best_squared[0] = distance_squared;
+                        best_triangle[0] = triangle_index;
+                        result_count = std::min<std::size_t>(2u, result_count + 1u);
+                    }
+                    else if (result_count == 1u ||
+                        distance_squared < best_squared[1] ||
+                        (distance_squared == best_squared[1] &&
+                         triangle_index < best_triangle[1]))
+                    {
+                        best_squared[1] = distance_squared;
+                        best_triangle[1] = triangle_index;
+                        result_count = 2u;
+                    }
+                }
+                continue;
+            }
+            const double left_distance =
+                detail::aabb_distance(point_box, bvh[node.left].box);
+            const double right_distance =
+                detail::aabb_distance(point_box, bvh[node.right].box);
+            if (left_distance < right_distance)
+            {
+                stack.push_back(node.right);
+                stack.push_back(node.left);
+            }
+            else
+            {
+                stack.push_back(node.left);
+                stack.push_back(node.right);
+            }
+        }
+        return best_triangle;
+    }
+
     std::array<std::uint32_t, 2> nearest_triangle_pair(
         Vec3 first_point,
         Vec3 second_point) const
@@ -1159,6 +1236,33 @@ QueryResult ExactSurface::query(Vec3 point) const
         impl_->mesh, &impl_->pseudo_normals,
         point, &triangle, 1,
         impl_->composition == CompositionPolicy::SeparateAssets);
+    result.branch_motion_clearance = 0.0;
+    if (impl_->composition == CompositionPolicy::SeparateAssets)
+        return result;
+    const bool inside = impl_->inside_composed(point);
+    const double unsigned_distance = std::abs(result.phi);
+    result.phi = inside ? -unsigned_distance : unsigned_distance;
+    if (unsigned_distance > kTiny)
+        result.raw_gradient = (inside ? -1.0 : 1.0) *
+            (point - result.witness) / unsigned_distance;
+    else if (inside)
+        result.raw_gradient = -1.0 * result.raw_gradient;
+    result.unit_normal = normalized(result.raw_gradient);
+    return result;
+}
+
+QueryResult ExactSurface::query_certified(Vec3 point) const
+{
+    std::size_t triangle_count = 0u;
+    const std::array<std::uint32_t, 2> triangles =
+        impl_->nearest_triangles(point, triangle_count);
+    QueryResult result = detail::exact_query_triangle(
+        impl_->mesh,
+        &impl_->pseudo_normals,
+        point,
+        triangles.data(),
+        triangle_count,
+        impl_->composition == CompositionPolicy::SeparateAssets);
     if (impl_->composition == CompositionPolicy::SeparateAssets)
         return result;
     const bool inside = impl_->inside_composed(point);
@@ -1197,6 +1301,7 @@ void ExactSurface::query_batch(
             QueryResult result = detail::exact_query_triangle(
                 impl_->mesh, &impl_->pseudo_normals, point, &triangle, 1,
                 impl_->composition == CompositionPolicy::SeparateAssets);
+            result.branch_motion_clearance = 0.0;
             if (impl_->composition == CompositionPolicy::SeparateAssets)
             {
                 out[index + lane] = result;
@@ -1227,6 +1332,7 @@ QueryResult ExactSurface::query_subset(
         impl_->mesh, &impl_->pseudo_normals,
         point, triangle_indices, count,
         impl_->composition == CompositionPolicy::SeparateAssets);
+    result.branch_motion_clearance = 0.0;
     if (impl_->composition == CompositionPolicy::SeparateAssets)
         return result;
     const bool inside = impl_->inside_composed(point);
@@ -1375,6 +1481,7 @@ QueryResult exact_query_triangle(
 {
     QueryResult result;
     double best_squared = std::numeric_limits<double>::infinity();
+    double competitor_squared = std::numeric_limits<double>::infinity();
     std::uint32_t best_index = 0;
     ClosestPoint best_closest;
 
@@ -1396,9 +1503,19 @@ QueryResult exact_query_triangle(
         if (distance_squared < best_squared ||
             (distance_squared == best_squared && index < best_index))
         {
+            if (std::isfinite(best_squared))
+            {
+                competitor_squared = std::min(
+                    competitor_squared, best_squared);
+            }
             best_squared = distance_squared;
             best_index = index;
             best_closest = closest;
+        }
+        else
+        {
+            competitor_squared = std::min(
+                competitor_squared, distance_squared);
         }
     }
     if (!std::isfinite(best_squared))
@@ -1431,6 +1548,46 @@ QueryResult exact_query_triangle(
     result.branch_signature = hash_combine(
         hash_combine(0x4e534446ull, triangle.face_id),
         static_cast<std::uint64_t>(best_closest.feature));
+    if (best_closest.feature == Feature::Face)
+    {
+        const Vec3 a = mesh.vertices[triangle.vertex[0]];
+        const Vec3 b = mesh.vertices[triangle.vertex[1]];
+        const Vec3 c = mesh.vertices[triangle.vertex[2]];
+        const double twice_area = norm(cross(b - a, c - a));
+        const std::array<double, 3> opposite_edge_lengths{
+            norm(c - b), norm(a - c), norm(b - a)};
+        double feature_clearance = std::numeric_limits<double>::infinity();
+        for (std::size_t corner = 0; corner < 3; ++corner)
+        {
+            if (opposite_edge_lengths[corner] > kTiny)
+            {
+                feature_clearance = std::min(
+                    feature_clearance,
+                    std::max(0.0, best_closest.barycentric[corner]) *
+                        twice_area / opposite_edge_lengths[corner]);
+            }
+        }
+        double competitor_clearance =
+            std::numeric_limits<double>::infinity();
+        if (std::isfinite(competitor_squared))
+        {
+            const double competitor_distance =
+                std::sqrt(std::max(0.0, competitor_squared));
+            const double separation_tolerance =
+                64.0 * std::numeric_limits<double>::epsilon() *
+                std::max({1.0, unsigned_distance, competitor_distance});
+            competitor_clearance = 0.5 * std::max(
+                0.0,
+                competitor_distance - unsigned_distance -
+                    separation_tolerance);
+        }
+        const double clearance =
+            std::min(feature_clearance, competitor_clearance);
+        if (std::isfinite(clearance) && clearance > 0.0)
+        {
+            result.branch_motion_clearance = clearance;
+        }
+    }
     result.valid = true;
     result.exact = true;
     result.in_domain = true;

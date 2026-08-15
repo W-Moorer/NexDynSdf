@@ -93,6 +93,14 @@ NEXSDF_API nexsdf_status nexsdf_query(
     const nexsdf_asset* asset,
     const double point[3],
     nexsdf_query_result* out_result);
+/* Exact query plus a conservative asset-local motion radius preserving the
+ * selected triangle and face-interior closest-feature branch. The clearance
+ * is zero for approximate assets, edge/vertex branches, ties, or failure. */
+NEXSDF_API nexsdf_status nexsdf_query_certified(
+    const nexsdf_asset* asset,
+    const double point[3],
+    nexsdf_query_result* out_result,
+    double* out_branch_motion_clearance);
 NEXSDF_API nexsdf_status nexsdf_query_batch(
     const nexsdf_asset* asset,
     size_t count,
